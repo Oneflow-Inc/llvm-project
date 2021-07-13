@@ -1,37 +1,25 @@
 // Mostly copy from UnusedReturnValueCheck
 //
-#include "UnusedMaybeCheck.h"
+#include "UnusedCheck.h"
 #include "../utils/OptionsUtils.h"
+#include "CommonMatcher.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Basic/SourceLocation.h"
-#include "clang/Lex/Lexer.h"
 
 using namespace clang::ast_matchers;
 using namespace clang::ast_matchers::internal;
 
 namespace clang {
 namespace tidy {
-namespace bugprone {
+namespace maybe {
 
-namespace {
-
-AST_MATCHER_REGEX(QualType, matchesNameForType, RegExp) {
-  if (Node.isNull()) {
-    return false;
-  }
-  const std::string &Name = Node.getAsString();
-  return RegExp->match(Name);
-}
-
-} // namespace
-
-UnusedMaybeCheck::UnusedMaybeCheck(llvm::StringRef Name,
+UnusedCheck::UnusedCheck(llvm::StringRef Name,
                                    ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context) {}
 
-void UnusedMaybeCheck::registerMatchers(MatchFinder *Finder) {
+void UnusedCheck::registerMatchers(MatchFinder *Finder) {
   auto MatchedCallExpr = expr(ignoringImplicit(ignoringParenImpCasts(
       callExpr(callee(functionDecl(returns(matchesNameForType("^Maybe<.*>$")))))
           .bind("match"))));
@@ -61,7 +49,7 @@ void UnusedMaybeCheck::registerMatchers(MatchFinder *Finder) {
       this);
 }
 
-void UnusedMaybeCheck::check(const MatchFinder::MatchResult &Result) {
+void UnusedCheck::check(const MatchFinder::MatchResult &Result) {
   if (const auto *Matched = Result.Nodes.getNodeAs<CallExpr>("match")) {
     diag(Matched->getBeginLoc(), "This function returns Maybe but the return "
                                  "value is ignored. Wrap it with JUST(..)?")
@@ -71,6 +59,6 @@ void UnusedMaybeCheck::check(const MatchFinder::MatchResult &Result) {
   }
 }
 
-} // namespace bugprone
+} // namespace maybe
 } // namespace tidy
 } // namespace clang
