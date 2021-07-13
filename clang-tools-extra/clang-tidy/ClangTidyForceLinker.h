@@ -89,6 +89,11 @@ extern volatile int LLVMLibcModuleAnchorSource;
 static int LLVM_ATTRIBUTE_UNUSED LLVMLibcModuleAnchorDestination =
     LLVMLibcModuleAnchorSource;
 
+// This anchor is used to force the linker to link the MaybeModule.
+extern volatile int MaybeModuleAnchorSource;
+static int LLVM_ATTRIBUTE_UNUSED MaybeModuleAnchorDestination =
+    MaybeModuleAnchorSource;
+
 // This anchor is used to force the linker to link the MiscModule.
 extern volatile int MiscModuleAnchorSource;
 static int LLVM_ATTRIBUTE_UNUSED MiscModuleAnchorDestination =
