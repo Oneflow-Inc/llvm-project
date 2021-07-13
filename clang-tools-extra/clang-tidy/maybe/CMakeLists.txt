@@ -5,7 +5,8 @@ set(LLVM_LINK_COMPONENTS
 
 add_clang_library(clangTidyMaybeModule
   GlogFatalCheck.cpp
-  MaybeModule.cpp
+  MaybeTidyModule.cpp
+  UnusedCheck.cpp
 
   LINK_LIBS
   clangTidy

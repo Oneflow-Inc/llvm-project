@@ -10,6 +10,7 @@
 #include "../ClangTidyModule.h"
 #include "../ClangTidyModuleRegistry.h"
 #include "GlogFatalCheck.h"
+#include "UnusedCheck.h"
 
 namespace clang {
 namespace tidy {
@@ -20,6 +21,8 @@ public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
     CheckFactories.registerCheck<GlogFatalCheck>(
         "maybe-glog-fatal");
+    CheckFactories.registerCheck<UnusedCheck>(
+        "maybe-unused");
   }
 };
 
@@ -27,7 +30,7 @@ public:
 
 // Register the MaybeTidyModule using this statically initialized variable.
 static ClangTidyModuleRegistry::Add<maybe::MaybeModule>
-    X("maybe-module", "Adds checks for maybe.");
+    X("maybe-module", "Add checks for maybe.");
 
 // This anchor is used to force the linker to link in the generated object file
 // and thus register the MaybeModule.

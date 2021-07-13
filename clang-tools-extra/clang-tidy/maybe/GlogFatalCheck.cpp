@@ -7,7 +7,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "GlogFatalCheck.h"
+#include "CommonMatcher.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 
 using namespace clang::ast_matchers;
@@ -17,19 +19,22 @@ namespace tidy {
 namespace maybe {
 
 void GlogFatalCheck::registerMatchers(MatchFinder *Finder) {
-  // FIXME: Add matchers.
-  Finder->addMatcher(functionDecl().bind("x"), this);
+  auto MatchedFunctionDecl = functionDecl(
+      isDefinition(), returns(matchesNameForType("^Maybe<.*>$")),
+      hasDescendant(cxxTemporaryObjectExpr(
+                        hasTypeLoc(loc(asString("google::LogMessageFatal"))))
+                        .bind("glog_fatal")));
+  Finder->addMatcher(MatchedFunctionDecl, this);
 }
 
 void GlogFatalCheck::check(const MatchFinder::MatchResult &Result) {
-  // FIXME: Add callback implementation.
-  const auto *MatchedDecl = Result.Nodes.getNodeAs<FunctionDecl>("x");
-  if (!MatchedDecl->getIdentifier() || MatchedDecl->getName().startswith("awesome_"))
-    return;
-  diag(MatchedDecl->getLocation(), "function %0 is insufficiently awesome")
-      << MatchedDecl;
-  diag(MatchedDecl->getLocation(), "insert 'awesome'", DiagnosticIDs::Note)
-      << FixItHint::CreateInsertion(MatchedDecl->getLocation(), "awesome_");
+  if (const auto *Matched =
+          Result.Nodes.getNodeAs<CXXTemporaryObjectExpr>("glog_fatal")) {
+    diag(Matched->getBeginLoc(),
+         "Glog CHECK should not be unused in functions returning Maybe. Use "
+         "CHECK_OR_RETURN family instead.")
+        << Matched->getSourceRange();
+  }
 }
 
 } // namespace maybe
