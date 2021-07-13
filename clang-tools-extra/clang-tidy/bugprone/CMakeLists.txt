@@ -61,6 +61,7 @@ add_clang_library(clangTidyBugproneModule
   UnhandledSelfAssignmentCheck.cpp
   UnusedRaiiCheck.cpp
   UnusedReturnValueCheck.cpp
+  UnusedMaybeCheck.cpp
   UseAfterMoveCheck.cpp
   VirtualNearMissCheck.cpp
 
