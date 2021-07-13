@@ -31,8 +31,8 @@ void GlogFatalCheck::check(const MatchFinder::MatchResult &Result) {
   if (const auto *Matched =
           Result.Nodes.getNodeAs<CXXTemporaryObjectExpr>("glog_fatal")) {
     diag(Matched->getBeginLoc(),
-         "Glog CHECK should not be unused in functions returning Maybe. Use "
-         "CHECK_OR_RETURN family instead.")
+         "Glog CHECK should not be used in functions returning Maybe. Use "
+         "CHECK_OR_RETURN family or JUST(..) instead.")
         << Matched->getSourceRange();
   }
 }
