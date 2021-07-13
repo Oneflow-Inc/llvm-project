@@ -34,6 +34,7 @@ Clang-Tidy Checks
    `altera-kernel-name-restriction <altera-kernel-name-restriction.html>`_,
    `altera-single-work-item-barrier <altera-single-work-item-barrier.html>`_,
    `altera-struct-pack-align <altera-struct-pack-align.html>`_, "Yes"
+   `altera-unroll-loops <altera-unroll-loops.html>`_,
    `android-cloexec-accept <android-cloexec-accept.html>`_, "Yes"
    `android-cloexec-accept4 <android-cloexec-accept4.html>`_,
    `android-cloexec-creat <android-cloexec-creat.html>`_, "Yes"
@@ -205,7 +206,6 @@ Clang-Tidy Checks
    `llvmlibc-callee-namespace <llvmlibc-callee-namespace.html>`_,
    `llvmlibc-implementation-in-namespace <llvmlibc-implementation-in-namespace.html>`_,
    `llvmlibc-restrict-system-libc-headers <llvmlibc-restrict-system-libc-headers.html>`_, "Yes"
-   `maybe-glog-fatal <maybe-glog-fatal.html>`_, "Yes"
    `misc-definitions-in-headers <misc-definitions-in-headers.html>`_, "Yes"
    `misc-misplaced-const <misc-misplaced-const.html>`_,
    `misc-new-delete-overloads <misc-new-delete-overloads.html>`_,
@@ -339,6 +339,7 @@ Clang-Tidy Checks
    `cert-oop11-cpp <cert-oop11-cpp.html>`_, `performance-move-constructor-init <performance-move-constructor-init.html>`_,
    `cert-oop54-cpp <cert-oop54-cpp.html>`_, `bugprone-unhandled-self-assignment <bugprone-unhandled-self-assignment.html>`_,
    `cert-pos44-c <cert-pos44-c.html>`_, `bugprone-bad-signal-to-kill-thread <bugprone-bad-signal-to-kill-thread.html>`_,
+   `cert-pos47-c <cert-pos47-c.html>`_, `concurrency-thread-canceltype-asynchronous <concurrency-thread-canceltype-asynchronous.html>`_,
    `cert-sig30-c <cert-sig30-c.html>`_, `bugprone-signal-handler <bugprone-signal-handler.html>`_,
    `cert-str34-c <cert-str34-c.html>`_, `bugprone-signed-char-misuse <bugprone-signed-char-misuse.html>`_,
    `clang-analyzer-core.CallAndMessage <clang-analyzer-core.CallAndMessage.html>`_, `Clang Static Analyzer <https://clang.llvm.org/docs/analyzer/checkers.html>`_,
