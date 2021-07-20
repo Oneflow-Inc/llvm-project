@@ -64,7 +64,7 @@ void GlogFatalCheck::check(const MatchFinder::MatchResult &Result) {
     //     CHECK(true);
     //   }
     // }
-    // 
+    //
     if (CalledCallable->getID() != NearestCallable->getID()) {
       return;
     }
@@ -75,6 +75,7 @@ void GlogFatalCheck::check(const MatchFinder::MatchResult &Result) {
   if (!Matched) {
     return;
   }
+  // getExpansionRange returns a empty range if the code at the loc is not a macro
   auto ExpansionRange =
       Result.SourceManager->getExpansionRange(Matched->getBeginLoc());
   auto ExpansionBeginLoc = ExpansionRange.getBegin();
@@ -84,7 +85,6 @@ void GlogFatalCheck::check(const MatchFinder::MatchResult &Result) {
     diag(ExpansionBeginLoc,
          "CHECK_JUST should not be used in functions returning Maybe. Use "
          "JUST(..) instead.")
-        << ExpansionRange
         << FixItHint::CreateReplacement(
                CharSourceRange::getCharRange(
                    ExpansionBeginLoc, ExpansionBeginLoc.getLocWithOffset(10)),
@@ -99,7 +99,6 @@ void GlogFatalCheck::check(const MatchFinder::MatchResult &Result) {
       diag(ExpansionBeginLoc,
            Name + " should not be used in functions returning Maybe. Use " +
                Name + "_OR_RETURN(..) instead.")
-          << ExpansionRange
           << FixItHint::CreateReplacement(
                  CharSourceRange::getCharRange(
                      ExpansionBeginLoc,
@@ -113,7 +112,7 @@ void GlogFatalCheck::check(const MatchFinder::MatchResult &Result) {
                       "function returning Maybe."
                     : "Glog CHECK should not be used in functions returning "
                       "Maybe. Use CHECK_OR_RETURN family or JUST(..) instead.";
-  diag(Matched->getBeginLoc(), Msg) << ExpansionRange;
+  diag(Matched->getBeginLoc(), Msg) << Matched->getSourceRange();
 }
 
 } // namespace maybe
