@@ -34923,9 +34923,11 @@ unsigned X86TargetLowering::ComputeNumSignBitsForTargetNode(
   }
 
   case X86ISD::FSETCC:
-    // Scalar cmpss/cmpsd return zero/all-bits result values.
-    assert((VT == MVT::f32 || VT == MVT::f64) && "Unexpected fp scalar result");
-    return VTBits;
+    // cmpss/cmpsd return zero/all-bits result values in the bottom element.
+    if (VT == MVT::f32 || VT == MVT::f64 ||
+        ((VT == MVT::v4f32 || VT == MVT::v2f64) && DemandedElts == 1))
+      return VTBits;
+    break;
 
   case X86ISD::PCMPGT:
   case X86ISD::PCMPEQ:
