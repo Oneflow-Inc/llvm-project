@@ -49,7 +49,7 @@ else:
     import queue as queue
 
 
-def run_tidy(task_queue, lock, timeout):
+def run_tidy(task_queue, lock, timeout, failed_cmds):
   watchdog = None
   while True:
     command = task_queue.get()
@@ -70,6 +70,8 @@ def run_tidy(task_queue, lock, timeout):
         if stderr:
           sys.stderr.write(stderr.decode('utf-8') + '\n')
           sys.stderr.flush()
+        if proc.returncode != 0:
+          failed_cmds.append(command)
     except Exception as e:
       with lock:
         sys.stderr.write('Failed: ' + str(e) + ': '.join(command) + '\n')
@@ -83,9 +85,9 @@ def run_tidy(task_queue, lock, timeout):
       task_queue.task_done()
 
 
-def start_workers(max_tasks, tidy_caller, task_queue, lock, timeout):
+def start_workers(max_tasks, tidy_caller, task_queue, lock, timeout, failed_cmds):
   for _ in range(max_tasks):
-    t = threading.Thread(target=tidy_caller, args=(task_queue, lock, timeout))
+    t = threading.Thread(target=tidy_caller, args=(task_queue, lock, timeout, failed_cmds))
     t.daemon = True
     t.start()
 
@@ -219,7 +221,8 @@ def main():
   lock = threading.Lock()
 
   # Run a pool of clang-tidy workers.
-  start_workers(max_task_count, run_tidy, task_queue, lock, args.timeout)
+  failed_cmds = []
+  start_workers(max_task_count, run_tidy, task_queue, lock, args.timeout, failed_cmds)
 
   # Form the common args list.
   common_clang_tidy_args = []
@@ -274,6 +277,8 @@ def main():
   if tmpdir:
     shutil.rmtree(tmpdir)
 
+  return len(failed_cmds) != 0
+
 
 if __name__ == '__main__':
-  main()
+  sys.exit(main())
