@@ -122,6 +122,9 @@ def main():
                                    'Run clang-tidy against changed files, and '
                                    'output diagnostics only for modified '
                                    'lines.')
+  parser.add_argument('-allow-enabling-alpha-checkers',
+                    action='store_true', help='allow alpha checkers from '
+                                              'clang-analyzer.')
   parser.add_argument('-clang-tidy-binary', metavar='PATH',
                       default='clang-tidy',
                       help='path to clang-tidy binary')
@@ -174,6 +177,13 @@ def main():
 
   args = parser.parse_args(argv)
 
+  comp_db_path = os.path.join(args.build_path, 'compile_commands.json')
+  comp_db_file = open(comp_db_path)
+  comp_db = json.load(comp_db_file)
+  comp_db_file.close()
+
+  all_filenames = set(os.path.abspath(i['file']) for i in comp_db)
+  
   # Extract changed lines for each file.
   filename = None
   lines_by_file = {}
@@ -206,6 +216,11 @@ def main():
     print("No relevant changes found.")
     sys.exit(0)
 
+  for f in lines_by_file:
+    if os.path.abspath(f) not in all_filenames:
+      print('warning: file `%s` is not found in compile command database `%s`' % (f, comp_db_path))
+      del lines_by_file[f]
+
   max_task_count = args.j
   if max_task_count == 0:
       max_task_count = multiprocessing.cpu_count()
@@ -226,6 +241,8 @@ def main():
 
   # Form the common args list.
   common_clang_tidy_args = []
+  if args.allow_enabling_alpha_checkers:
+    common_clang_tidy_args.append('-allow-enabling-analyzer-alpha-checkers')
   if args.fix:
     common_clang_tidy_args.append('-fix')
   if args.checks != '':
