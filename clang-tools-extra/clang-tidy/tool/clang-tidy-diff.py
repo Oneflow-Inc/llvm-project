@@ -216,7 +216,7 @@ def main():
     print("No relevant changes found.")
     sys.exit(0)
 
-  for f in lines_by_file:
+  for f in list(lines_by_file.keys()):
     if os.path.abspath(f) not in all_filenames:
       print('warning: file `%s` is not found in compile command database `%s`' % (f, comp_db_path))
       del lines_by_file[f]
