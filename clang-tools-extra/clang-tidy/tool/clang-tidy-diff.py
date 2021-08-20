@@ -147,6 +147,12 @@ def main():
                       help='checks filter, when not specified, use clang-tidy '
                       'default',
                       default='')
+  parser.add_argument('-warnings-as-errors',
+                      help="Upgrades warnings to errors. Same format as "
+                      "'-checks'. This option's value is appended to the "
+                      "value of the 'WarningsAsErrors' option in "
+                      ".clang-tidy file, if any.",
+                      default='')
   parser.add_argument('-use-color', action='store_true',
                       help='Use colors in output')
   parser.add_argument('-path', dest='build_path',
@@ -247,6 +253,8 @@ def main():
     common_clang_tidy_args.append('-fix')
   if args.checks != '':
     common_clang_tidy_args.append('-checks=' + args.checks)
+  if args.warnings_as_errors != '':
+    common_clang_tidy_args.append('-warnings-as-errors=' + args.warnings_as_errors)
   if args.quiet:
     common_clang_tidy_args.append('-quiet')
   if args.build_path is not None:
