@@ -7,6 +7,7 @@ add_clang_library(clangTidyMaybeModule
   GlogFatalCheck.cpp
   MaybeTidyModule.cpp
   UnusedCheck.cpp
+  UseSafeMethodsCheck.cpp
 
   LINK_LIBS
   clangTidy

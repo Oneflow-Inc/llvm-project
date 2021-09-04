@@ -11,6 +11,7 @@
 #include "../ClangTidyModuleRegistry.h"
 #include "GlogFatalCheck.h"
 #include "UnusedCheck.h"
+#include "UseSafeMethodsCheck.h"
 
 namespace clang {
 namespace tidy {
@@ -23,6 +24,8 @@ public:
         "maybe-glog-fatal");
     CheckFactories.registerCheck<UnusedCheck>(
         "maybe-unused");
+    CheckFactories.registerCheck<UseSafeMethodsCheck>(
+        "maybe-use-safe-methods");
   }
 };
 
