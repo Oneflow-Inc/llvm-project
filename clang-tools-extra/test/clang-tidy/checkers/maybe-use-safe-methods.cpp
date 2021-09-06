@@ -38,7 +38,7 @@ using oneflow::Maybe;
 
 Maybe<int> g(const std::vector<int>& v) {
     for(int i = 0; i < v.size(); ++i) f(v.at(i));
-    // CHECK-MESSAGES: :[[@LINE-1]]:43: warning: Unsafe method `std::vector<int>::at` {{.*}}
+    // CHECK-MESSAGES: :[[@LINE-1]]:43: warning: unsafe method `std::vector<int>::at` {{.*}}
     // CHECK-FIXES: JUST(oneflow::VectorAt(v, i))
 
     return Maybe<int>{1};
@@ -48,15 +48,15 @@ Maybe<int> g(const std::vector<int>& v) {
 template <typename T>
 Maybe<T> h(const std::vector<T>& v) {
     for(int i = 0; i < v.size(); ++i) f(v.at(i));
-    // CHECK-MESSAGES: :[[@LINE-1]]:43: warning: Unsafe method `std::vector<double>::at` {{.*}}
-    // CHECK-MESSAGES: :[[@LINE-2]]:43: warning: Unsafe method `std::vector<float>::at` {{.*}}
+    // CHECK-MESSAGES: :[[@LINE-1]]:43: warning: unsafe method `std::vector<double>::at` {{.*}}
+    // CHECK-MESSAGES: :[[@LINE-2]]:43: warning: unsafe method `std::vector<float>::at` {{.*}}
 
     return Maybe<T>{1};
 }
 
 Maybe<int> x1(const std::string& x) {
     return x.at(10);
-    // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: Unsafe method `std::basic_string<char>::at` {{.*}}
+    // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: unsafe method `std::basic_string<char>::at` {{.*}}
     // CHECK-FIXES: JUST(oneflow::VectorAt(x, 10))
 }
 
@@ -64,7 +64,7 @@ std::string xx(int);
 
 Maybe<int> x2() {
     return xx(2333).at(10);
-    // CHECK-MESSAGES: :[[@LINE-1]]:21: warning: Unsafe method `std::basic_string<char>::at` {{.*}}
+    // CHECK-MESSAGES: :[[@LINE-1]]:21: warning: unsafe method `std::basic_string<char>::at` {{.*}}
     // CHECK-FIXES: JUST(oneflow::VectorAt(xx(2333), 10))
 }
 
