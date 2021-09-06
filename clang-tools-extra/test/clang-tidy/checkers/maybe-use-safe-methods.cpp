@@ -16,6 +16,18 @@ namespace std {
     };
 
     using string = basic_string<char>;
+
+    template <typename T>
+    struct shared_ptr {
+        T& operator*() const;
+        T* operator->() const;
+    };
+
+    template <typename K, typename V>
+    struct map {
+        const V& at(const K&) const;
+        V& at(const K&);
+    };
 }
 
 namespace oneflow {
@@ -33,6 +45,7 @@ struct Maybe<int> {
 }
 
 void f(int);
+int rand();
 
 using oneflow::Maybe;
 
@@ -72,4 +85,33 @@ Maybe<int> x2() {
 void i() {
     h<float>({});
     h<double>({});
+}
+
+Maybe<char> yy(std::string* x) {
+    return x->at(rand());
+    // CHECK-MESSAGES: :[[@LINE-1]]:15: warning: unsafe method `std::basic_string<char>::at` {{.*}}
+    // CHECK-FIXES: JUST(oneflow::VectorAt(*x, rand()))
+}
+
+Maybe<char> zz(std::shared_ptr<std::string> x) {
+    return x->at(rand());
+    // CHECK-MESSAGES: :[[@LINE-1]]:15: warning: unsafe method `std::basic_string<char>::at` {{.*}}
+    // CHECK-FIXES: JUST(oneflow::VectorAt(*x, rand()))
+}
+
+template <typename T>
+Maybe<T> t1(std::shared_ptr<std::vector<T>> x) {
+    return x->at(rand());
+    // CHECK-MESSAGES: :[[@LINE-1]]:15: warning: unsafe method `std::vector<{{.*}}>::at` {{.*}}
+    // CHECK-FIXES: JUST(oneflow::VectorAt(*x, rand()))
+}
+
+void i2() {
+    t1<unsigned>({});
+}
+
+Maybe<int> z2(const std::map<int, int>& x) {
+    return x.at(rand());
+    // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: unsafe method `std::map<int, int>::at` {{.*}}
+    // CHECK-FIXES: JUST(oneflow::MapAt(x, rand()))
 }

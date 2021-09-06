@@ -8,10 +8,12 @@
 
 #include "UseSafeMethodsCheck.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/ExprCXX.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/Lex/Lexer.h"
+#include "llvm/Support/Casting.h"
 
 #include <map>
 
@@ -95,18 +97,30 @@ void UseSafeMethodsCheck::check(const MatchFinder::MatchResult &Result) {
     return;
   }
 
+  const auto *This = Expr->getImplicitObjectArgument()->IgnoreParenImpCasts();
+
   auto GetSource = [&SM = *Result.SourceManager, &LO = Result.Context->getLangOpts()](SourceRange SR){
-    return Lexer::getSourceText(CharSourceRange::getTokenRange(SR), SM, LO);
+    return std::string(Lexer::getSourceText(CharSourceRange::getTokenRange(SR), SM, LO));
   };
-
-  auto ObjStr = GetSource(Expr->getImplicitObjectArgument()->getSourceRange());
-
+  
   std::string ArgStr;
+
+  if (This->getType()->isPointerType()) {
+    const auto *OThis = llvm::dyn_cast<CXXOperatorCallExpr>(This);
+    if (OThis && OThis->getOperator() == OverloadedOperatorKind::OO_Arrow) {
+      ArgStr = "*" + GetSource(OThis->getArg(0)->getSourceRange());
+    } else {
+      ArgStr = "*" + GetSource(This->getSourceRange());
+    }
+  } else {
+    ArgStr = GetSource(This->getSourceRange());
+  }
+  
   for (const auto *Arg : Expr->arguments()) {
-    ArgStr += ", " + std::string(GetSource(Arg->getSourceRange()));
+    ArgStr += ", " + GetSource(Arg->getSourceRange());
   }
 
-  std::string FixStr = JustMacroName + "(" + std::string(Info->second) + "(" + std::string(ObjStr) + ArgStr + "))";
+  std::string FixStr = JustMacroName + "(" + std::string(Info->second) + "(" + ArgStr + "))";
 
   diag(Expr->getExprLoc(), "unsafe method `%0` is called in function `%1` which returns `%2`, please try to replace it with `%3`")
     << Call->getQualifiedNameAsString()
