@@ -108,7 +108,7 @@ void UseSafeMethodsCheck::check(const MatchFinder::MatchResult &Result) {
 
   std::string FixStr = JustMacroName + "(" + std::string(Info->second) + "(" + std::string(ObjStr) + ArgStr + "))";
 
-  diag(Expr->getExprLoc(), "Unsafe method `%0` is called in function `%1` which returns `%2`, please try to replace it with `%3`")
+  diag(Expr->getExprLoc(), "unsafe method `%0` is called in function `%1` which returns `%2`, please try to replace it with `%3`")
     << Call->getQualifiedNameAsString()
     << Func->getQualifiedNameAsString()
     << MaybeTypeName
