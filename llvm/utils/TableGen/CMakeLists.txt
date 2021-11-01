@@ -2,6 +2,19 @@ add_subdirectory(GlobalISel)
 
 set(LLVM_LINK_COMPONENTS Support)
 
+add_library(of-tablegen-backends 
+  oneflow/UserOpDefEmitter.cpp
+  )
+
+target_include_directories(of-tablegen-backends SYSTEM PRIVATE 
+  inja/single_include 
+  json/single_include
+  )
+
+target_link_libraries(of-tablegen-backends LLVMSupport)
+
+target_compile_options(of-tablegen-backends PRIVATE -fno-rtti)
+
 add_tablegen(llvm-tblgen LLVM
   AsmMatcherEmitter.cpp
   AsmWriterEmitter.cpp
@@ -57,5 +70,6 @@ add_tablegen(llvm-tblgen LLVM
   WebAssemblyDisassemblerEmitter.cpp
   CTagsEmitter.cpp
   )
-target_link_libraries(llvm-tblgen PRIVATE LLVMTableGenGlobalISel)
+
+target_link_libraries(llvm-tblgen PRIVATE LLVMTableGenGlobalISel of-tablegen-backends)
 set_target_properties(llvm-tblgen PROPERTIES FOLDER "Tablegenning")
