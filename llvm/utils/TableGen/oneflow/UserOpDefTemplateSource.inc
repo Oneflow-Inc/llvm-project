@@ -6,18 +6,18 @@ namespace oneflow {
 
 namespace user_op {
 {% for name, op in ops %}
-const HashMap<StringView, std::size_t> {{ name }}::in_map_ {
-    {% for elem in op.in %}{ "{{ elem.name }}", offsetof({{ name }}, {{ elem.name }}) },
+const ParamMap {{ name }}::in_map_ {
+    {% for elem in op.in %}{ "{{ elem.name }}", &{{ name }}::get_{{ elem.name }} },
     {% endfor %}
 };{% endfor %}
 {% for name, op in ops %}
-const HashMap<StringView, std::size_t> {{ name }}::out_map_ {
-    {% for elem in op.out %}{ "{{ elem.name }}", offsetof({{ name }}, {{ elem.name }}) },
+const ParamMap {{ name }}::out_map_ {
+    {% for elem in op.out %}{ "{{ elem.name }}", &{{ name }}::get_{{ elem.name }} },
     {% endfor %}
 };{% endfor %}
 {% for name, op in ops %}
-const HashMap<StringView, std::pair<std::size_t, std::type_index>> {{ name }}::attr_map_ {
-    {% for elem in op.attr %}{ "{{ elem.name }}", { offsetof({{ name }}, {{ elem.name }}), typeof({{ elem.type }}) } },
+const ParamMap {{ name }}::attr_map_ {
+    {% for elem in op.attr %}{ "{{ elem.name }}", { &{{ name }}::_get_void_ptr_{{ elem.name }}, typeof({{ elem.type }}) } },
     {% endfor %}
 };{% endfor %}
 } // namespace user_op
