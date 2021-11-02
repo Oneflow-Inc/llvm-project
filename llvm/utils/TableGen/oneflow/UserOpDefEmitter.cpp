@@ -91,33 +91,44 @@ public:
   json Ops;
 
   for (const auto& R : Records.getAllDerivedDefinitions("Op")) {
+    auto Name = R->getValueAsString("OpName");
+    if (Name == "") {
+      PrintFatalError(R, "Name of `Op` definitions cannot be omitted");
+    }
 
     json Op {
-      {"name", R->getValueAsString("OpName")},
+      {"name", Name},
       {"desc", R->getValueAsString("Description")},
     };
 
     for (const auto* P : *R->getValueAsListInit("Params")) {
       const auto* D = dyn_cast<DagInit>(P);
-      if(!D) {
+      if (!D) {
         PrintFatalError(R, "`Params` in `Op` should be typed as `list<dag>`");
       }
 
       auto Type = D->getOperatorAsDef(R->getLoc())->getValueAsString("ParamNode");
-      for(size_t I = 0; I < D->getNumArgs(); ++I) {
+      for (size_t I = 0; I < D->getNumArgs(); ++I) {
         const auto* A = dyn_cast<DefInit>(D->getArg(I));
         StringRef AS;
-        if(!A) {
-          if(Type == "in" || Type == "out") {
+        if (!A) {
+          if (Type == "in" || Type == "out") {
             AS = Records.getDef("Tensor")->getValueAsString("TensorType");
           } else {
             PrintFatalError(R, "Arguments in `Params` should be type definitions");
           }
         } else {
-          AS = A->getDef()->getValueAsString("AttributeType");
+          if (Type == "in" || Type == "out") {
+            AS = A->getDef()->getValueAsString("TensorType");
+          } else {
+            AS = A->getDef()->getValueAsString("AttributeType");
+          }
         }
         
         auto NS = D->getArgName(I)->getAsUnquotedString();
+        if (NS == "") {
+          PrintFatalError(R, "Name in `Params` cannot be omitted");
+        }
         if (Type == "in" || Type == "out" || Type == "attr") {
           Op[Type.data()].push_back({{"name", NS}, {"type", AS}});
         } else {
@@ -127,7 +138,7 @@ public:
     }
 
     for (auto E : R->getValues()) {
-      if(E.getPrintType() == "FunctionMeta") {
+      if (E.getPrintType() == "FunctionMeta") {
         const auto *F = dyn_cast<DefInit>(E.getValue());
         if(!F) {
           PrintFatalError(R, "FunctionMeta value should be definition");
@@ -159,9 +170,12 @@ public:
 
   json Data {
     {"filename", Filename},
-    {"include", SourceIncludeFilename},
     {"ops", Ops},
   };
+
+  if (Target == UserOpDefTarget::Source) {
+    Data["include"] = SourceIncludeFilename;
+  }
 
   if (!DumpJson.empty()) {
     std::ofstream File(DumpJson);
