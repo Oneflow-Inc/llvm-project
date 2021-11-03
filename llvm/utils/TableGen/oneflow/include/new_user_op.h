@@ -1,16 +1,24 @@
 #include <cstddef>
 #include <unordered_map>
 #include <functional>
-#include <string>
+#include <inja/inja.hpp>
 #include <typeindex>
+#include <cassert>
+#include <vector>
 
-using StringView = std::string;
+using StringView = nonstd::string_view;
 struct TensorTuple{};
 
 template <typename ...T>
 using HashMap = std::unordered_map<T...>;
 
-template<typename> struct Optional {};
+struct NullOptType {} NullOpt;
+
+template<typename T> struct Optional {
+    Optional(NullOptType) {}
+    Optional(const T&) {}
+};
+
 struct OpConfProto{};
 
 namespace oneflow{
@@ -19,10 +27,15 @@ namespace user_op {
 
 struct OpConf;
 
+using ParamMemFn = TensorTuple&(OpConf::*)();
+using AttrMemFn = void*(OpConf::*)();
+
 using ParamMap = HashMap<StringView, std::function<TensorTuple&(OpConf*)>>;
 using AttrMap = HashMap<StringView, std::pair<std::function<void*(OpConf*)>, std::type_index>>;
 
 struct ParamIter {
+        ParamIter(const ParamMap::const_iterator& it, OpConf* op) : it(it), op(op) {}
+
         auto name() const { return it->first; }
         decltype(auto) operator*() const { 
             return it->second(op);
@@ -39,6 +52,8 @@ struct ParamIter {
 };
 
 struct ConstParamIter {
+        ConstParamIter(const ParamMap::const_iterator& it, const OpConf* op) : it(it), op(op) {}
+
         auto name() const { return it->first; }
         decltype(auto) operator*() const { 
             return static_cast<const TensorTuple&>(it->second(const_cast<OpConf*>(op))); 
@@ -55,6 +70,8 @@ struct ConstParamIter {
 };
 
 struct AttrIter {
+        AttrIter(const AttrMap::const_iterator& it, OpConf* op) : it(it), op(op) {}
+        
         auto name() const { return it->first; }
         template <typename T>
         decltype(auto) operator*() const {
@@ -73,6 +90,8 @@ struct AttrIter {
 };
 
 struct ConstAttrIter {
+        ConstAttrIter(const AttrMap::const_iterator& it, const OpConf* op) : it(it), op(op) {}
+
         auto name() const { return it->first; }
         template <typename T>
         decltype(auto) operator*() const {
@@ -114,17 +133,21 @@ struct OpConf {
     virtual size_t AttrSize() const = 0;
     template <typename T>
     Optional<T&> Attr(StringView name) {
-        auto [v, t] = AttrImpl(name);
-        assert(t == typeid(T));
+        auto v = AttrImpl(name);
+        if (!v.first) return NullOpt;
 
-        return *reinterpret<T*>(v);
+        assert(v.second == typeid(T));
+
+        return *reinterpret_cast<T*>(v.first);
     }
     template <typename T>
     Optional<const T&> Attr(StringView name) const {
-        auto [v, t] = AttrImpl(name);
-        assert(t == typeid(T));
+        auto v = AttrImpl(name);
+        if (!v.first) return NullOpt;
 
-        return *reinterpret<const T*>(v);
+        assert(v.second == typeid(T));
+
+        return *reinterpret_cast<const T*>(v.first);
     }
     
     template <typename T>
@@ -137,7 +160,7 @@ struct OpConf {
         // ...
     }
     
-    void ToProto(OpConfProto& proto) const {
+    virtual void ToProto(OpConfProto& proto) const {
         for(auto it = InBegin(); it != InEnd(); ++it) {
             // ...
         }
@@ -155,7 +178,7 @@ struct OpConf {
     
 protected:
     virtual std::pair<void*, std::type_index> AttrImpl(StringView) = 0;
-    virtual std::pair<void*, std::type_index> AttrImpl(StringView) const = 0;
+    virtual std::pair<const void*, std::type_index> AttrImpl(StringView) const = 0;
 };
 
 } // namespace user_op

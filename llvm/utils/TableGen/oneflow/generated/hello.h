@@ -1,34 +1,47 @@
-R"(
+/*===- TableGen'erated file -------------------------------------*- C++ -*-===*\
+|*                                                                            *|
+|* Oneflow User Op Definitions                                                *|
+|*                                                                            *|
+|* Automatically generated file, do not edit!                                 *|
+|*                                                                            *|
+\*===----------------------------------------------------------------------===*/
+
+
 #include "new_user_op.h"
 
 namespace oneflow {
 
 namespace user_op {
-{% for name, op in ops %}
-// operator `{{ op.name }}`: {{ op.desc }}
-struct {{ name }} : OpConf {
-public:
-  // input parameters ({{ length(op.in) }})
-  {% for elem in op.in %}{{ elem.type }} {{ elem.name }};
-  {% endfor %}
-  {% for elem in op.in %}{{ elem.type }}& get_{{ elem.name }}() { return {{ elem.name }}; }
-  {% endfor %}
-  // output parameters ({{ length(op.out) }})
-  {% for elem in op.out %}{{ elem.type }} {{ elem.name }};
-  {% endfor %}
-  {% for elem in op.out %}{{ elem.type }}& get_{{ elem.name }}() { return {{ elem.name }}; }
-  {% endfor %}
-  // attributes ({{ length(op.attr) }})
-  {% for elem in op.attr %}{{ elem.type }} {{ elem.name }};
-  {% endfor %}
-  {% for elem in op.attr %}{{ elem.type }}& get_{{ elem.name }}() { return {{ elem.name }}; }
-  {% endfor %}
-  {% for elem in op.attr %}void *_get_void_ptr_{{ elem.name }}() { return reinterpret_cast<void *>(&{{ elem.name }}); }
-  {% endfor %}
 
-  static constexpr const StringView name = "{{ op.name }}";
+// operator `hello`: just a demo
+struct HelloOp : OpConf {
+public:
+  // input parameters (2)
+  TensorTuple a;
+  TensorTuple b;
+  
+  TensorTuple& get_a() { return a; }
+  TensorTuple& get_b() { return b; }
+  
+  // output parameters (1)
+  TensorTuple c;
+  
+  TensorTuple& get_c() { return c; }
+  
+  // attributes (2)
+  int num;
+  std::vector<float> seeds;
+  
+  int& get_num() { return num; }
+  std::vector<float>& get_seeds() { return seeds; }
+  
+  void *_get_void_ptr_num() { return reinterpret_cast<void *>(&num); }
+  void *_get_void_ptr_seeds() { return reinterpret_cast<void *>(&seeds); }
+  
+
+  static constexpr const StringView name = "hello";
   StringView Name() const override { return name; }
-  static constexpr const StringView description = {{ quoted(op.desc) }};
+  static constexpr const StringView description = "just a demo";
   StringView Description() const override { return description; }
 
   ParamIter InBegin() override { return ParamIter{in_map_.begin(), this}; }
@@ -47,7 +60,7 @@ public:
   Optional<const TensorTuple&> In(StringView) const override {
     auto iter = in_map_.find(name);
     if (iter != in_map_.end()) {
-      return iter->second(const_cast<{{ name }}*>(this));
+      return iter->second(const_cast<HelloOp*>(this));
     }
 
     return NullOpt;
@@ -69,7 +82,7 @@ public:
   Optional<const TensorTuple&> Out(StringView) const override {
     auto iter = out_map_.find(name);
     if (iter != out_map_.end()) {
-      return iter->second(const_cast<{{ name }}*>(this));
+      return iter->second(const_cast<HelloOp*>(this));
     }
 
     return NullOpt;
@@ -91,7 +104,7 @@ public:
   std::pair<const void*, std::type_index> AttrImpl(StringView name) const override {
     auto iter = attr_map_.find(name);
     if (iter != attr_map_.end()) {
-      return {iter->second.first(const_cast<{{ name }}*>(this)), iter->second.second};
+      return {iter->second.first(const_cast<HelloOp*>(this)), iter->second.second};
     }
 
     return {nullptr, typeid(void)};
@@ -101,8 +114,7 @@ protected:
   static const ParamMap in_map_;
   static const ParamMap out_map_;
   static const AttrMap  attr_map_;
-};{% endfor %}
+};
 } // namespace user_op
 
 } // namespace oneflow
-)"

@@ -15,6 +15,8 @@ target_link_libraries(of-tablegen-backends LLVMSupport)
 
 target_compile_options(of-tablegen-backends PRIVATE -fno-rtti)
 
+add_subdirectory(oneflow)
+
 add_tablegen(llvm-tblgen LLVM
   AsmMatcherEmitter.cpp
   AsmWriterEmitter.cpp
