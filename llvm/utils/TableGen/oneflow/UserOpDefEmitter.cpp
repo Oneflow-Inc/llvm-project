@@ -143,6 +143,15 @@ public:
       }
     }
 
+    if (!Op.contains("in")) {
+      PrintFatalError(R, "Expect input parameters");
+    }
+    for (const auto& E : {"out", "attr"}) {
+      if(!Op.contains(E)) {
+        Op[E] = json::array();
+      }
+    }
+
     for (auto E : R->getValues()) {
       if (E.getPrintType() == "FunctionMeta") {
         const auto *F = dyn_cast<DefInit>(E.getValue());
