@@ -79,6 +79,12 @@ public:
       if (DotPos != std::string::npos) {
         Str.replace(DotPos, Str.size() - DotPos, ".h");
       }
+
+      // assume that the source and header file is in the same directory
+      auto SlashPos = Str.find_last_of('/');
+      if (SlashPos != std::string::npos) {
+        Str.replace(0, SlashPos + 1, "");
+      }
       return Str;
     });
 
