@@ -1,0 +1,6 @@
+[submodule "llvm/utils/TableGen/inja"]
+	path = llvm/utils/TableGen/inja
+	url = https://github.com/pantor/inja
+[submodule "llvm/utils/TableGen/json"]
+	path = llvm/utils/TableGen/json
+	url = https://github.com/nlohmann/json

@@ -57,6 +57,8 @@ enum ActionType {
   GenAutomata,
   GenDirectivesEnumDecl,
   GenDirectivesEnumImpl,
+  GenOneflowUserOpDefHeader,
+  GenOneflowUserOpDefSource,
 };
 
 namespace llvm {
@@ -138,7 +140,11 @@ cl::opt<ActionType> Action(
         clEnumValN(GenDirectivesEnumDecl, "gen-directive-decl",
                    "Generate directive related declaration code (header file)"),
         clEnumValN(GenDirectivesEnumImpl, "gen-directive-impl",
-                   "Generate directive related implementation code")));
+                   "Generate directive related implementation code"),
+        clEnumValN(GenOneflowUserOpDefHeader, "gen-of-user-op-def-h", 
+                   "Generate oneflow user op definition header code (.h)"),
+        clEnumValN(GenOneflowUserOpDefSource, "gen-of-user-op-def-cpp", 
+                   "Generate oneflow user op definition source code (.cpp)")));
 
 cl::OptionCategory PrintEnumsCat("Options for -print-enums");
 cl::opt<std::string> Class("class", cl::desc("Print Enum list for this class"),
@@ -271,6 +277,12 @@ bool LLVMTableGenMain(raw_ostream &OS, RecordKeeper &Records) {
     break;
   case GenDirectivesEnumImpl:
     EmitDirectivesImpl(Records, OS);
+    break;
+  case GenOneflowUserOpDefHeader:
+    EmitOneflowUserOpDefHeader(Records, OS);
+    break;
+  case GenOneflowUserOpDefSource:
+    EmitOneflowUserOpDefSource(Records, OS);
     break;
   }
 
