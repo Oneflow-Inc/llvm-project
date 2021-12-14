@@ -1673,3 +1673,18 @@ def UncountedLocalVarsChecker : Checker<"UncountedLocalVarsChecker">,
   Documentation<HasDocumentation>;
 
 } // end alpha.webkit
+
+// checkers for type Maybe in oneflow
+def Maybe : Package<"maybe">;
+
+let ParentPackage = Maybe in {
+
+  def UsageChecker : Checker<"UsageChecker">,
+    HelpText<"Check usage of Maybe, i.e. error not handled or forwarded">,
+    Documentation<NotDocumented>;
+
+  def ExceptionChecker : Checker<"ExceptionChecker">,
+    HelpText<"Check for exceptions which is forbidden in functions that return Maybe">,
+    Documentation<NotDocumented>;
+
+}
