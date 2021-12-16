@@ -1,7 +1,9 @@
 // TODO: add header
 
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/Expr.h"
 #include "clang/AST/Stmt.h"
+#include "clang/Analysis/AnalysisDeclContext.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugReporter.h"
@@ -23,6 +25,7 @@
 #include "llvm/Support/raw_ostream.h"
 
 #include <memory>
+#include <stack>
 
 #include "Utils.h"
 
@@ -73,11 +76,11 @@ struct ComparableSVal : public SVal {
 REGISTER_MAP_WITH_PROGRAMSTATE(MaybeStateMap, MemRegion const *,
                                maybe::MaybeState);
 
-REGISTER_MAP_WITH_PROGRAMSTATE(MaybeDeclMap, Decl const *, SVal);
-
 namespace maybe {
 
 static llvm::StringRef MaybeTypeName = "oneflow::Maybe";
+static llvm::StringRef EitherPtrTypeName = "oneflow::EitherPtr";
+static llvm::StringRef SharedOrScalarTypeName = "oneflow::SharedOrScalar";
 static llvm::StringRef MaybeCheckMethod = "IsOk";
 static llvm::StringRef MaybeGetData =
     "Data_YouAreNotAllowedToCallThisFuncOutsideThisFile";
@@ -85,41 +88,10 @@ static llvm::StringRef MaybeGetErr = "error";
 static llvm::StringRef GlogFatal = "google::LogMessageFatal::LogMessageFatal";
 
 class MaybeUsageChecker
-    : public Checker<check::PostCall, check::Bind, check::BeginFunction> {
-private:
-  BuiltinBug BugType{this, "Wrong usage of Maybe"};
+    : public Checker<check::PostCall, check::PreCall, check::Bind,
+                     check::BeginFunction, check::PreStmt<ReturnStmt>> {
 
-  llvm::raw_ostream &log(CheckerContext &C,
-                         llvm::raw_ostream &os = DebugOuts()) const {
-    const auto *LC = C.getLocationContext();
-    while (LC->getParent()) {
-      LC = LC->getParent();
-    }
-
-    return os << "["
-              << LC->getAnalysisDeclContext()
-                     ->getDecl()
-                     ->getAsFunction()
-                     ->getQualifiedNameAsString()
-              << ", "
-              << C.getCurrentAnalysisDeclContext()
-                     ->getDecl()
-                     ->getAsFunction()
-                     ->getQualifiedNameAsString()
-              << "] ";
-  }
-
-  llvm::raw_ostream &log(const CallEvent &B, CheckerContext &C,
-                         llvm::raw_ostream &os = DebugOuts()) const {
-    return log(C, os)
-           << B.getDecl()->getAsFunction()->getQualifiedNameAsString() << ": ";
-  }
-
-  llvm::raw_ostream &log(SVal S, const CallEvent &B, CheckerContext &C,
-                         llvm::raw_ostream &os = DebugOuts()) const {
-    return log(B, C, os) << S << "|" << (const void *)region(S) << " ";
-  }
-
+public:
   static const MemRegion *region(SVal v, bool W = false) {
     if (auto LCV = v.getAs<nonloc::LazyCompoundVal>()) {
       return LCV->getRegion();
@@ -133,11 +105,87 @@ private:
     return R;
   }
 
+private:
+  BuiltinBug BugType{this, "Wrong usage of Maybe"};
+
+  struct PrintSVal : SVal {
+    PrintSVal(SVal V) : SVal(V) {}
+
+    friend auto &operator<<(llvm::raw_ostream &OS, const PrintSVal &V) {
+      return OS << (const SVal &)V << "|"
+                << (const void *)region((const SVal &)V);
+    }
+  };
+
+#define FULLSTACKLOG
+
+  llvm::raw_ostream &log(CheckerContext &C,
+                         llvm::raw_ostream &os = DebugOuts()) const {
+    const auto *LC = C.getLocationContext();
+#ifdef FULLSTACKLOG
+    std::stack<const LocationContext *> LS;
+#endif
+    while (LC->getParent()) {
+#ifdef FULLSTACKLOG
+      LS.push(LC);
+#endif
+      LC = LC->getParent();
+    }
+
+#ifdef FULLSTACKLOG
+    LS.push(LC);
+#endif
+
+    os << "[";
+#ifdef FULLSTACKLOG
+    bool F = true;
+    while (!LS.empty()) {
+      if (F) {
+        F = false;
+      } else {
+        os << "=>";
+      }
+      os << LS.top()
+                ->getAnalysisDeclContext()
+                ->getDecl()
+                ->getAsFunction()
+                ->getQualifiedNameAsString();
+      LS.pop();
+    }
+#else
+    if (LC != C.getLocationContext()) {
+      os << LC->getAnalysisDeclContext()
+                ->getDecl()
+                ->getAsFunction()
+                ->getQualifiedNameAsString()
+         << "..";
+    }
+
+    os << C.getCurrentAnalysisDeclContext()
+              ->getDecl()
+              ->getAsFunction()
+              ->getQualifiedNameAsString();
+#endif
+    return os << "] ";
+  }
+
+  llvm::raw_ostream &log(const CallEvent &B, CheckerContext &C,
+                         llvm::raw_ostream &os = DebugOuts()) const {
+    return log(C, os)
+           << B.getDecl()->getAsFunction()->getQualifiedNameAsString() << ": ";
+  }
+
+  llvm::raw_ostream &log(SVal S, const CallEvent &B, CheckerContext &C,
+                         llvm::raw_ostream &os = DebugOuts()) const {
+    return log(B, C, os) << PrintSVal(S) << " ";
+  }
+
   static auto getPointeeTypeOrSelf(const QualType &T) {
     auto PT = T->getPointeeType();
     if (PT.isNull()) {
       return T;
     }
+
     return PT;
   }
 
@@ -146,9 +194,11 @@ private:
   }
 
   static auto getReturnValue(const CallEvent *B) {
-    // if (auto O = B->getReturnValueUnderConstruction()) {
-    //   return *O;
-    // }
+#ifdef GET_RET_VAL_UNDER_CONSTRUCT
+    if (auto O = B->getReturnValueUnderConstruction()) {
+      return *O;
+    }
+#endif
 
     return B->getReturnValue();
   }
@@ -167,10 +217,44 @@ private:
         std::make_unique<PathSensitiveBugReport>(BugType, Desc, EN));
   }
 
+  static auto IsConstCharPtr(QualType T) {
+    if (!T->isPointerType())
+      return false;
+
+    auto P = T->getPointeeType();
+    return P->isCharType() && P.isConstQualified();
+  };
+
 public:
   void checkBeginFunction(CheckerContext &C) const {
     if (C.inTopFrame()) {
       log(C) << "start\n";
+    }
+  }
+
+  void checkPreStmt(const ReturnStmt *R, CheckerContext &C) const {
+    auto RV = C.getSVal(R);
+    auto RT = RV.getType(C.getASTContext());
+
+    if (RT.isNull()) {
+      return;
+    }
+
+    if (MatchNameOfClassTemplate(getPointeeTypeOrSelf(RT), MaybeTypeName)) {
+      log(C) << "return " << PrintSVal(RV) << "\n";
+    }
+  }
+
+  void checkPreCall(const CallEvent &B, CheckerContext &C) const {
+    for (size_t i = 0; i < B.getNumArgs(); ++i) {
+      auto ArgVal = B.getArgSVal(i);
+      auto ArgType = ArgVal.getType(C.getASTContext());
+
+      if (!ArgType.isNull() &&
+          MatchNameOfClassTemplate(getPointeeTypeOrSelf(ArgType),
+                                   MaybeTypeName)) {
+        log(B, C) << "call with arg " << PrintSVal(ArgVal) << "\n";
+      }
     }
   }
 
@@ -180,12 +264,12 @@ public:
       return;
 
     auto State = C.getState();
-    const auto &ResultType = getResultType(D);
-    bool CurrentFuncReturnMaybe =
-        maybe::MatchNameOfClassTemplate(ResultType, MaybeTypeName);
     auto RetVal = getReturnValue(&B);
+    const auto &ResultType = getResultType(D);
+    const auto *CurrFunc =
+        C.getCurrentAnalysisDeclContext()->getDecl()->getAsFunction();
 
-    if (CurrentFuncReturnMaybe) {
+    if (maybe::MatchNameOfClassTemplate(ResultType, MaybeTypeName)) {
 
       if (!get(State, RetVal, true)) {
         State = set(State, RetVal, MaybeState::Inited);
@@ -195,16 +279,20 @@ public:
 
     if (const auto *CtorCall = dyn_cast<CXXConstructorCall>(&B)) {
       auto RT = RetVal.getType(C.getASTContext());
+
       if (MatchNameOfClassTemplate(RT, MaybeTypeName)) {
         bool IsCopyCtor = false;
+
         if (CtorCall->getNumArgs() == 1) {
           auto ArgVal = CtorCall->getArgSVal(0);
           auto ArgType =
               getPointeeTypeOrSelf(ArgVal.getType(C.getASTContext()));
+
           if (MatchNameOfClassTemplate(ArgType, MaybeTypeName)) {
             IsCopyCtor = true;
-            log(RetVal, B, C) << "copy constructed from "
-                              << (const void *)region(ArgVal) << "\n";
+
+            log(RetVal, B, C)
+                << "copy constructed from " << PrintSVal(ArgVal) << "\n";
             if (const auto *MS = get(State, ArgVal)) {
               State = set(State, RetVal, *MS);
             }
@@ -217,21 +305,16 @@ public:
     }
 
     if (D->getAsFunction()->getQualifiedNameAsString() == GlogFatal) {
-
       bool IsInMaybeContext = false;
+
       for (const auto *LC = C.getLocationContext(); LC; LC = LC->getParent()) {
         const auto *Func =
             LC->getAnalysisDeclContext()->getDecl()->getAsFunction();
         auto RetType = Func->getReturnType();
+
         if (MatchNameOfClassTemplate(getPointeeTypeOrSelf(RetType),
                                      MaybeTypeName)) {
           if (const auto *MD = dyn_cast<CXXMethodDecl>(Func)) {
-            auto IsConstCharPtr = [](QualType T) {
-              if (!T->isPointerType())
-                return false;
-              auto P = T->getPointeeType();
-              return P->isCharType() && P.isConstQualified();
-            };
             if (MD->getOverloadedOperator() == OO_Call &&
                 !MD->getParent()->getIdentifier() && MD->getNumParams() == 1 &&
                 IsConstCharPtr(MD->getParamDecl(0)->getType())) {
@@ -245,15 +328,16 @@ public:
         }
       }
 
-      const auto *CurrFunc =
-          C.getCurrentAnalysisDeclContext()->getDecl()->getAsFunction();
       if (IsInMaybeContext) {
         bool Filter = false;
+
         if (auto O = GetMethodNameInClassTemplate(CurrFunc)) {
-          if (O->first == MaybeTypeName) {
+          if (O->first == MaybeTypeName || O->first == SharedOrScalarTypeName ||
+              O->first == EitherPtrTypeName) {
             Filter = true;
           }
         }
+
         if (!Filter) {
           emitReport(C, "abort in maybe context", C.generateErrorNode());
           log(B, C) << "abort\n";
@@ -267,14 +351,16 @@ public:
                                          MaybeCheckMethod)) {
         if (get(State, This)) {
           State = set(State, This, getReturnValue(MethodCall));
+
           log(This, B, C) << "checked\n";
         }
       }
 
       else if (MatchMethodNameInClassTemplate(MethodCall->getDecl(),
                                               MaybeTypeName, MaybeGetData)) {
-        log(This, B, C) << "get data\n";
         if (const auto *MS = get(State, This)) {
+          log(This, B, C) << "get data\n";
+
           if (MS->state == MaybeState::Inited) {
             emitReport(C, "maybe not check", C.generateErrorNode());
           } else {
@@ -282,6 +368,7 @@ public:
               if (auto PS = State->assume(*DVal, false)) {
                 emitReport(C, "get data from a NOT OK branch",
                            C.generateErrorNode(PS));
+
                 log(This, B, C) << "assume NOT OK\n";
               }
 
@@ -295,8 +382,9 @@ public:
 
       else if (MatchMethodNameInClassTemplate(MethodCall->getDecl(),
                                               MaybeTypeName, MaybeGetErr)) {
-        log(This, B, C) << "get error\n";
         if (const auto *MS = get(State, This)) {
+          log(This, B, C) << "get error\n";
+
           if (MS->state == MaybeState::Inited) {
             emitReport(C, "maybe not check", C.generateErrorNode());
           } else {
@@ -304,6 +392,7 @@ public:
               if (auto PS = State->assume(*DVal, true)) {
                 emitReport(C, "get error from a OK branch",
                            C.generateErrorNode(PS));
+
                 log(This, B, C) << "assume OK\n";
               }
 
@@ -317,6 +406,7 @@ public:
 
       else if (llvm::isa<CXXDestructorCall>(&B)) {
         auto ThisType = This.getType(C.getASTContext())->getPointeeType();
+
         if (maybe::MatchNameOfClassTemplate(ThisType, MaybeTypeName)) {
           if (const auto *MS = get(State, This)) {
             if (MS->state == MaybeState::Inited) {
