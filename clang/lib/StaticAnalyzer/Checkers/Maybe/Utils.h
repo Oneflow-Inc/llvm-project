@@ -15,6 +15,8 @@
 namespace maybe {
 
 inline llvm::Optional<std::string> GetNameOfClassTemplate(clang::QualType type) {
+    if(type.isNull()) return {};
+
     if (const auto &tempType = type->getAs<clang::TemplateSpecializationType>()) {
         if (clang::TemplateDecl *decl = tempType->getTemplateName().getAsTemplateDecl()) {
             return decl->getQualifiedNameAsString();

@@ -1,5 +1,7 @@
 // TODO: add header
 
+#include "clang/AST/DeclCXX.h"
+#include "clang/AST/Stmt.h"
 #include "clang/Basic/Diagnostic.h"
 #include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugReporter.h"
@@ -9,10 +11,14 @@
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CheckerContext.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/ExplodedGraph.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/MemRegion.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramStateTrait.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/SVals.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/Store.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SymExpr.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/Casting.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -28,7 +34,7 @@ namespace maybe {
 struct MaybeState {
   enum State {
     Invalid = 0,
-    InitFromCall,
+    Inited,
     Checked,
   } state;
 
@@ -50,9 +56,24 @@ struct MaybeState {
   }
 };
 
+struct ComparableSVal : public SVal {
+  ComparableSVal(SVal V) : SVal(V) {}
+
+  bool operator<(ComparableSVal V) const {
+    if (Kind == V.Kind) {
+      return Data < V.Data;
+    }
+
+    return Kind < V.Kind;
+  }
+};
+
 } // namespace maybe
 
-REGISTER_MAP_WITH_PROGRAMSTATE(MaybeStateMap, SymbolRef, maybe::MaybeState);
+REGISTER_MAP_WITH_PROGRAMSTATE(MaybeStateMap, MemRegion const *,
+                               maybe::MaybeState);
+
+REGISTER_MAP_WITH_PROGRAMSTATE(MaybeDeclMap, Decl const *, SVal);
 
 namespace maybe {
 
@@ -61,17 +82,26 @@ static llvm::StringRef MaybeCheckMethod = "IsOk";
 static llvm::StringRef MaybeGetData =
     "Data_YouAreNotAllowedToCallThisFuncOutsideThisFile";
 static llvm::StringRef MaybeGetErr = "error";
+static llvm::StringRef GlogFatal = "google::LogMessageFatal::LogMessageFatal";
 
 class MaybeUsageChecker
     : public Checker<check::PostCall, check::Bind, check::BeginFunction> {
 private:
   BuiltinBug BugType{this, "Wrong usage of Maybe"};
-  std::unique_ptr<const FunctionDecl *> TopFunc =
-      std::make_unique<const FunctionDecl *>(nullptr);
 
   llvm::raw_ostream &log(CheckerContext &C,
                          llvm::raw_ostream &os = DebugOuts()) const {
-    return os << "[" << (*TopFunc)->getQualifiedNameAsString() << ", "
+    const auto *LC = C.getLocationContext();
+    while (LC->getParent()) {
+      LC = LC->getParent();
+    }
+
+    return os << "["
+              << LC->getAnalysisDeclContext()
+                     ->getDecl()
+                     ->getAsFunction()
+                     ->getQualifiedNameAsString()
+              << ", "
               << C.getCurrentAnalysisDeclContext()
                      ->getDecl()
                      ->getAsFunction()
@@ -85,10 +115,62 @@ private:
            << B.getDecl()->getAsFunction()->getQualifiedNameAsString() << ": ";
   }
 
+  llvm::raw_ostream &log(SVal S, const CallEvent &B, CheckerContext &C,
+                         llvm::raw_ostream &os = DebugOuts()) const {
+    return log(B, C, os) << S << "|" << (const void *)region(S) << " ";
+  }
+
+  static const MemRegion *region(SVal v, bool W = false) {
+    if (auto LCV = v.getAs<nonloc::LazyCompoundVal>()) {
+      return LCV->getRegion();
+    }
+
+    const auto *R = v.getAsRegion();
+    if (!R && W) {
+      DebugOuts() << "[WARING] " << v
+                  << ": failed to retrieve region, keep zero\n";
+    }
+    return R;
+  }
+
+  static auto getPointeeTypeOrSelf(const QualType &T) {
+    auto PT = T->getPointeeType();
+    if (PT.isNull()) {
+      return T;
+    }
+    return PT;
+  }
+
+  static QualType getResultType(const Decl *D) {
+    return getPointeeTypeOrSelf(CallEvent::getDeclaredResultType(D));
+  }
+
+  static auto getReturnValue(const CallEvent *B) {
+    // if (auto O = B->getReturnValueUnderConstruction()) {
+    //   return *O;
+    // }
+
+    return B->getReturnValue();
+  }
+
+  static auto get(ProgramStateRef State, SVal V, bool W = false) {
+    return State->get<MaybeStateMap>(region(V, W));
+  }
+
+  static auto set(ProgramStateRef State, SVal V, const MaybeState &S) {
+    return State->set<MaybeStateMap>(region(V, true), S);
+  }
+
+  auto emitReport(CheckerContext &C, StringRef Desc,
+                  const ExplodedNode *EN) const {
+    return C.emitReport(
+        std::make_unique<PathSensitiveBugReport>(BugType, Desc, EN));
+  }
+
 public:
   void checkBeginFunction(CheckerContext &C) const {
     if (C.inTopFrame()) {
-      *TopFunc = C.getLocationContext()->getDecl()->getAsFunction();
+      log(C) << "start\n";
     }
   }
 
@@ -98,16 +180,84 @@ public:
       return;
 
     auto State = C.getState();
-    const auto &ResultType =
-        CallEvent::getDeclaredResultType(D).getNonReferenceType();
+    const auto &ResultType = getResultType(D);
+    bool CurrentFuncReturnMaybe =
+        maybe::MatchNameOfClassTemplate(ResultType, MaybeTypeName);
+    auto RetVal = getReturnValue(&B);
 
-    if (maybe::MatchNameOfClassTemplate(ResultType, MaybeTypeName)) {
-      auto RetVal = B.getReturnValue();
+    if (CurrentFuncReturnMaybe) {
 
-      const auto *Val = RetVal.getAsSymbol();
-      if (!State->get<MaybeStateMap>(Val)) {
-        State = State->set<MaybeStateMap>(Val, MaybeState::InitFromCall);
-        log(B, C) << "inited\n";
+      if (!get(State, RetVal, true)) {
+        State = set(State, RetVal, MaybeState::Inited);
+        log(RetVal, B, C) << "inited from call\n";
+      }
+    }
+
+    if (const auto *CtorCall = dyn_cast<CXXConstructorCall>(&B)) {
+      auto RT = RetVal.getType(C.getASTContext());
+      if (MatchNameOfClassTemplate(RT, MaybeTypeName)) {
+        bool IsCopyCtor = false;
+        if (CtorCall->getNumArgs() == 1) {
+          auto ArgVal = CtorCall->getArgSVal(0);
+          auto ArgType =
+              getPointeeTypeOrSelf(ArgVal.getType(C.getASTContext()));
+          if (MatchNameOfClassTemplate(ArgType, MaybeTypeName)) {
+            IsCopyCtor = true;
+            log(RetVal, B, C) << "copy constructed from "
+                              << (const void *)region(ArgVal) << "\n";
+            if (const auto *MS = get(State, ArgVal)) {
+              State = set(State, RetVal, *MS);
+            }
+          }
+        }
+        if (!IsCopyCtor) {
+          log(RetVal, B, C) << "constructed\n";
+        }
+      }
+    }
+
+    if (D->getAsFunction()->getQualifiedNameAsString() == GlogFatal) {
+
+      bool IsInMaybeContext = false;
+      for (const auto *LC = C.getLocationContext(); LC; LC = LC->getParent()) {
+        const auto *Func =
+            LC->getAnalysisDeclContext()->getDecl()->getAsFunction();
+        auto RetType = Func->getReturnType();
+        if (MatchNameOfClassTemplate(getPointeeTypeOrSelf(RetType),
+                                     MaybeTypeName)) {
+          if (const auto *MD = dyn_cast<CXXMethodDecl>(Func)) {
+            auto IsConstCharPtr = [](QualType T) {
+              if (!T->isPointerType())
+                return false;
+              auto P = T->getPointeeType();
+              return P->isCharType() && P.isConstQualified();
+            };
+            if (MD->getOverloadedOperator() == OO_Call &&
+                !MD->getParent()->getIdentifier() && MD->getNumParams() == 1 &&
+                IsConstCharPtr(MD->getParamDecl(0)->getType())) {
+              // ignore CHECK_JUST
+              continue;
+            }
+          }
+
+          IsInMaybeContext = true;
+          break;
+        }
+      }
+
+      const auto *CurrFunc =
+          C.getCurrentAnalysisDeclContext()->getDecl()->getAsFunction();
+      if (IsInMaybeContext) {
+        bool Filter = false;
+        if (auto O = GetMethodNameInClassTemplate(CurrFunc)) {
+          if (O->first == MaybeTypeName) {
+            Filter = true;
+          }
+        }
+        if (!Filter) {
+          emitReport(C, "abort in maybe context", C.generateErrorNode());
+          log(B, C) << "abort\n";
+        }
       }
     }
 
@@ -115,30 +265,28 @@ public:
       auto This = MethodCall->getCXXThisVal();
       if (MatchMethodNameInClassTemplate(MethodCall->getDecl(), MaybeTypeName,
                                          MaybeCheckMethod)) {
-        if (const auto *MS = State->get<MaybeStateMap>(This.getAsSymbol())) {
-          if (MS->state == MaybeState::InitFromCall) {
-            State = State->set<MaybeStateMap>(This.getAsSymbol(),
-                                              MethodCall->getReturnValue());
-            log(B, C) << "checked\n";
-          }
+        if (get(State, This)) {
+          State = set(State, This, getReturnValue(MethodCall));
+          log(This, B, C) << "checked\n";
         }
       }
 
       else if (MatchMethodNameInClassTemplate(MethodCall->getDecl(),
                                               MaybeTypeName, MaybeGetData)) {
-        log(B, C) << "get data\n";
-        if (const auto *MS = State->get<MaybeStateMap>(This.getAsSymbol())) {
-          if (MS->state == MaybeState::InitFromCall) {
-            C.emitReport(std::make_unique<PathSensitiveBugReport>(
-                BugType, "maybe not check", C.generateErrorNode()));
+        log(This, B, C) << "get data\n";
+        if (const auto *MS = get(State, This)) {
+          if (MS->state == MaybeState::Inited) {
+            emitReport(C, "maybe not check", C.generateErrorNode());
           } else {
-            Optional<DefinedOrUnknownSVal> DVal =
-                MS->checkVal.getAs<DefinedOrUnknownSVal>();
-            if (DVal) {
+            if (auto DVal = MS->checkVal.getAs<DefinedSVal>()) {
               if (auto PS = State->assume(*DVal, false)) {
-                C.emitReport(std::make_unique<PathSensitiveBugReport>(
-                    BugType, "get data from a NOT OK branch",
-                    C.generateErrorNode(PS)));
+                emitReport(C, "get data from a NOT OK branch",
+                           C.generateErrorNode(PS));
+                log(This, B, C) << "assume NOT OK\n";
+              }
+
+              if (State->assume(*DVal, true)) {
+                log(This, B, C) << "assume OK\n";
               }
             }
           }
@@ -147,34 +295,34 @@ public:
 
       else if (MatchMethodNameInClassTemplate(MethodCall->getDecl(),
                                               MaybeTypeName, MaybeGetErr)) {
-        log(B, C) << "get error\n";
-        if (const auto *MS = State->get<MaybeStateMap>(This.getAsSymbol())) {
-          if (MS->state == MaybeState::InitFromCall) {
-            C.emitReport(std::make_unique<PathSensitiveBugReport>(
-                BugType, "maybe not check", C.generateErrorNode()));
+        log(This, B, C) << "get error\n";
+        if (const auto *MS = get(State, This)) {
+          if (MS->state == MaybeState::Inited) {
+            emitReport(C, "maybe not check", C.generateErrorNode());
           } else {
-            Optional<DefinedOrUnknownSVal> DVal =
-                MS->checkVal.getAs<DefinedOrUnknownSVal>();
-            if (DVal) {
+            if (auto DVal = MS->checkVal.getAs<DefinedSVal>()) {
               if (auto PS = State->assume(*DVal, true)) {
-                C.emitReport(std::make_unique<PathSensitiveBugReport>(
-                    BugType, "get error from a OK branch",
-                    C.generateErrorNode(PS)));
+                emitReport(C, "get error from a OK branch",
+                           C.generateErrorNode(PS));
+                log(This, B, C) << "assume OK\n";
+              }
+
+              if (State->assume(*DVal, false)) {
+                log(This, B, C) << "assume NOT OK\n";
               }
             }
           }
         }
       }
 
-      else if (const auto *DtorCall = llvm::dyn_cast<CXXDestructorCall>(&B)) {
+      else if (llvm::isa<CXXDestructorCall>(&B)) {
         auto ThisType = This.getType(C.getASTContext())->getPointeeType();
         if (maybe::MatchNameOfClassTemplate(ThisType, MaybeTypeName)) {
-          if (const auto *MS = State->get<MaybeStateMap>(This.getAsSymbol())) {
-            if (MS->state == MaybeState::InitFromCall) {
-              C.emitReport(std::make_unique<PathSensitiveBugReport>(
-                  BugType, "maybe not check", C.generateErrorNode()));
+          if (const auto *MS = get(State, This)) {
+            if (MS->state == MaybeState::Inited) {
+              emitReport(C, "maybe not check", C.generateErrorNode());
             }
-            log(B, C) << "destructed\n";
+            log(This, B, C) << "destructed\n";
           }
         }
       }
@@ -187,9 +335,14 @@ public:
 
   void checkBind(SVal L, SVal V, const Stmt *S, CheckerContext &C) const {
     auto State = C.getState();
+    auto LType = getPointeeTypeOrSelf(L.getType(C.getASTContext()));
 
-    if (const auto *MS = State->get<MaybeStateMap>(V.getAsSymbol())) {
-      State = State->set<MaybeStateMap>(L.getAsSymbol(), *MS);
+    if (!MatchNameOfClassTemplate(LType, MaybeTypeName)) {
+      return;
+    }
+
+    if (const auto *MS = get(State, V)) {
+      State = set(State, L, *MS);
     }
 
     if (State != C.getState()) {
