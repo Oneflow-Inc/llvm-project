@@ -47,10 +47,8 @@ struct MaybeState {
   MaybeState(State s) : state(s) {}
   MaybeState(SVal c) : state(Checked), checkVal(c) {}
 
-  operator State() const { return state; }
-
   bool operator==(const MaybeState &other) const {
-    return state == other.state;
+    return state == other.state && checkVal == other.checkVal;
   }
 
   void Profile(llvm::FoldingSetNodeID &ID) const {
