@@ -193,6 +193,7 @@ def main():
   # Extract changed lines for each file.
   filename = None
   lines_by_file = {}
+  files_by_file = {}
   for line in sys.stdin:
     match = re.search('^\+\+\+\ \"?(.*?/){%s}([^ \t\n\"]*)' % args.p, line)
     if match:
@@ -217,15 +218,32 @@ def main():
         continue
       end_line = start_line + line_count - 1
       lines_by_file.setdefault(filename, []).append([start_line, end_line])
+      files_by_file[filename] = [filename]
+
+  for f in list(lines_by_file.keys()):
+    fpath = os.path.abspath(f)
+    if fpath not in all_filenames:
+      files_by_file[f].remove(f)
+
+      fsrc = os.path.splitext(fpath)[0] + '.cpp'
+      ftest = os.path.splitext(fpath)[0] + '_test.cpp'
+
+      if fsrc in all_filenames:
+        files_by_file[f].append(fsrc)
+
+      if ftest in all_filenames:
+        files_by_file[f].append(ftest)
+
+      print('warning: file `%s` is not found in compile command database `%s`' % (f, comp_db_path), end=', ')
+      if len(files_by_file[f]) == 0:
+        print('skip it')
+        del lines_by_file[f]
+      else:
+        print('use `%s` instead' % ', '.join(files_by_file[f]))
 
   if not any(lines_by_file):
     print("No relevant changes found.")
     sys.exit(0)
-
-  for f in list(lines_by_file.keys()):
-    if os.path.abspath(f) not in all_filenames:
-      print('warning: file `%s` is not found in compile command database `%s`' % (f, comp_db_path))
-      del lines_by_file[f]
 
   max_task_count = args.j
   if max_task_count == 0:
@@ -269,24 +287,25 @@ def main():
     common_clang_tidy_args.append('-load=%s' % plugin)
 
   for name in lines_by_file:
-    line_filter_json = json.dumps(
-      [{"name": name, "lines": lines_by_file[name]}],
-      separators=(',', ':'))
+    for path in files_by_file[name]:
+      line_filter_json = json.dumps(
+        [{"name": name, "lines": lines_by_file[name]}],
+        separators=(',', ':'))
 
-    # Run clang-tidy on files containing changes.
-    command = [args.clang_tidy_binary]
-    command.append('-line-filter=' + line_filter_json)
-    if yaml and args.export_fixes:
-      # Get a temporary file. We immediately close the handle so clang-tidy can
-      # overwrite it.
-      (handle, tmp_name) = tempfile.mkstemp(suffix='.yaml', dir=tmpdir)
-      os.close(handle)
-      command.append('-export-fixes=' + tmp_name)
-    command.extend(common_clang_tidy_args)
-    command.append(name)
-    command.extend(clang_tidy_args)
+      # Run clang-tidy on files containing changes.
+      command = [args.clang_tidy_binary]
+      command.append('-line-filter=' + line_filter_json)
+      if yaml and args.export_fixes:
+        # Get a temporary file. We immediately close the handle so clang-tidy can
+        # overwrite it.
+        (handle, tmp_name) = tempfile.mkstemp(suffix='.yaml', dir=tmpdir)
+        os.close(handle)
+        command.append('-export-fixes=' + tmp_name)
+      command.extend(common_clang_tidy_args)
+      command.append(path)
+      command.extend(clang_tidy_args)
 
-    task_queue.put(command)
+      task_queue.put(command)
 
   # Wait for all threads to be done.
   task_queue.join()
