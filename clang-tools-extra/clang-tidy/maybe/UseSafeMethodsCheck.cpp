@@ -105,29 +105,53 @@ void UseSafeMethodsCheck::check(const MatchFinder::MatchResult &Result) {
   
   std::string ArgStr;
 
+  bool IsOriginalArgPointer = false;
   if (This->getType()->isPointerType()) {
+    IsOriginalArgPointer = true;
     const auto *OThis = llvm::dyn_cast<CXXOperatorCallExpr>(This);
     if (OThis && OThis->getOperator() == OverloadedOperatorKind::OO_Arrow) {
-      ArgStr = "*" + GetSource(OThis->getArg(0)->getSourceRange());
+      ArgStr = GetSource(OThis->getArg(0)->getSourceRange());
     } else {
-      ArgStr = "*" + GetSource(This->getSourceRange());
+      ArgStr = GetSource(This->getSourceRange());
     }
   } else {
     ArgStr = GetSource(This->getSourceRange());
   }
+  std::string ObjectStr = ArgStr;
   
   for (const auto *Arg : Expr->arguments()) {
     ArgStr += ", " + GetSource(Arg->getSourceRange());
   }
 
-  std::string FixStr = JustMacroName + "(" + std::string(Info->second) + "(" + ArgStr + "))";
+  // NOTE(jianhao): it is likely that the "*" should be placed at another position
+  // for another "safe method" other than "VectorAt"
+  const std::string DereferencePrefix = IsOriginalArgPointer ? "*" : "";
 
-  diag(Expr->getExprLoc(), "unsafe method `%0` is called in function `%1` which returns `%2`, please try to replace it with `%3`")
+  std::string FixStr = DereferencePrefix + JustMacroName + "(" + 
+                       std::string(Info->second) + "(" + ArgStr + "))";
+
+  std::string AdditionalMsg;
+
+  if (Info->first.second == "at") {
+    const auto Index = [&]() -> std::string {
+      for (const auto *Arg : Expr->arguments()) {
+        return GetSource(Arg->getSourceRange());
+      }
+      // NOTE(jianhao): unreachable
+      return "unknown index";
+    }();
+    const auto AnotherFixStr = (IsOriginalArgPointer ? ("(*" + ObjectStr + ")") : ObjectStr) + "[" + Index + "]";
+    AdditionalMsg =  "However, if you are very sure that no bound-checking is needed here, " + AnotherFixStr + " is the better choice.";
+  }
+
+  diag(Expr->getExprLoc(), "Unsafe method `%0` is called in function `%1` which returns `%2`, please try to replace it with `%3`. %4")
     << Call->getQualifiedNameAsString()
     << Func->getQualifiedNameAsString()
     << MaybeTypeName
     << Info->second
+    << AdditionalMsg
     << FixItHint::CreateReplacement(Expr->getSourceRange(), FixStr);
+
 }
 
 } // namespace maybe
