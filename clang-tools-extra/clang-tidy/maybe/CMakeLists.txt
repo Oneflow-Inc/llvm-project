@@ -8,6 +8,7 @@ add_clang_library(clangTidyMaybeModule
   MaybeTidyModule.cpp
   UnusedCheck.cpp
   UseSafeMethodsCheck.cpp
+  NeedErrorMsgCheck.cpp
 
   LINK_LIBS
   clangTidy
