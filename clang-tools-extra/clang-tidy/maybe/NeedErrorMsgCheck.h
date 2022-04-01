@@ -16,9 +16,6 @@ namespace tidy {
 namespace maybe {
 
 /// FIXME: Write a short description.
-///
-/// For the user-facing documentation see:
-/// http://clang.llvm.org/extra/clang-tidy/checks/maybe-glog-fatal.html
 class NeedErrorMsgCheck : public ClangTidyCheck {
 public:
   NeedErrorMsgCheck(StringRef Name, ClangTidyContext *Context)
