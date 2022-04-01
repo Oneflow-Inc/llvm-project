@@ -19,8 +19,6 @@
 #include "clang/Lex/Lexer.h"
 #include "llvm/ADT/SmallVector.h"
 
-#include <iostream>
-
 using namespace clang::ast_matchers;
 
 namespace clang {
@@ -28,18 +26,29 @@ namespace tidy {
 namespace maybe {
 
 void NeedErrorMsgCheck::registerMatchers(MatchFinder *Finder) {
-  Finder->addMatcher(returnStmt(forFunction(functionDecl(returns(
-                                    matchesNameForType("^Maybe<.*>$")))))
-                         .bind("returnStmt"),
-                     this);
+  // Only match these statements:
+  // ```c++
+  // return Error::XXXError();
+  // return Error::XXXError() << "";
+  // CHECK_XX_OR_RETURN(...);
+  // ```
+  Finder->addMatcher(
+      traverse(TK_IgnoreUnlessSpelledInSource,
+               returnStmt(hasReturnValue(anyOf(
+                   callExpr(callee(functionDecl(
+                       returns(asString("class oneflow::Error"))))),
+                   cxxOperatorCallExpr(hasOverloadedOperatorName("<<"),
+                                       hasLHS(expr(hasType(cxxRecordDecl(
+                                           hasName("oneflow::Error"))))))))))
+          .bind("returnStmt"),
+      this);
 }
 
 void NeedErrorMsgCheck::check(const MatchFinder::MatchResult &Result) {
   const ReturnStmt *Matched = Result.Nodes.getNodeAs<ReturnStmt>("returnStmt");
-  // getExpansionRange returns a empty range if the code at the loc is not a
-  // macro
   auto ExpansionRange =
       Result.SourceManager->getExpansionRange(Matched->getBeginLoc());
+  auto ExpansionBeginLoc = ExpansionRange.getBegin();
   auto SourceTxt = Lexer::getSourceText(ExpansionRange, *Result.SourceManager,
                                         getLangOpts());
 
@@ -72,7 +81,10 @@ void NeedErrorMsgCheck::check(const MatchFinder::MatchResult &Result) {
       {"CHECK_NE_OR_RETURN", 8}, {"CHECK_GE_OR_RETURN", 8},
       {"CHECK_GT_OR_RETURN", 8}, {"CHECK_NOTNULL_OR_RETURN", 3}};
 
-  // Match statement "return Error::RuntimeError();" if serializeCount is 0
+  // Match the follow statement if serializeCount is 0
+  // ```c++
+  // return Error::RuntimeError();
+  // ```
   unsigned serializeCount = 0;
   for (const auto &KV : CheckMacroNamesAndSerializeCount) {
     const auto &Name = KV.getKey().str();
@@ -84,7 +96,7 @@ void NeedErrorMsgCheck::check(const MatchFinder::MatchResult &Result) {
   if (callExprs.size() > serializeCount) {
     return;
   }
-  diag(Matched->getBeginLoc(),
+  diag(ExpansionBeginLoc,
        "This function maybe return error but without any error message, please "
        "specify an error message.")
       << Matched->getSourceRange();
