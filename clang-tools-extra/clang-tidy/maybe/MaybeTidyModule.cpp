@@ -10,6 +10,7 @@
 #include "../ClangTidyModule.h"
 #include "../ClangTidyModuleRegistry.h"
 #include "GlogFatalCheck.h"
+#include "NeedErrorMsgCheck.h"
 #include "UnusedCheck.h"
 #include "UseSafeMethodsCheck.h"
 
@@ -20,12 +21,10 @@ namespace maybe {
 class MaybeModule : public ClangTidyModule {
 public:
   void addCheckFactories(ClangTidyCheckFactories &CheckFactories) override {
-    CheckFactories.registerCheck<GlogFatalCheck>(
-        "maybe-glog-fatal");
-    CheckFactories.registerCheck<UnusedCheck>(
-        "maybe-unused");
-    CheckFactories.registerCheck<UseSafeMethodsCheck>(
-        "maybe-use-safe-methods");
+    CheckFactories.registerCheck<GlogFatalCheck>("maybe-glog-fatal");
+    CheckFactories.registerCheck<UnusedCheck>("maybe-unused");
+    CheckFactories.registerCheck<UseSafeMethodsCheck>("maybe-use-safe-methods");
+    CheckFactories.registerCheck<NeedErrorMsgCheck>("maybe-need-error-msg");
   }
 };
 
@@ -41,4 +40,3 @@ volatile int MaybeModuleAnchorSource = 0;
 
 } // namespace tidy
 } // namespace clang
-
