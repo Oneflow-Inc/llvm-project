@@ -174,6 +174,8 @@ def main():
   parser.add_argument('-load', dest='plugins',
                       action='append', default=[],
                       help='Load the specified plugin in clang-tidy.')
+  parser.add_argument('-skip-line-filter', action='store_true', default=False,
+                      help='Skip -line-filter option in clang-tidy command')
 
   clang_tidy_args = []
   argv = sys.argv[1:]
@@ -294,7 +296,8 @@ def main():
 
       # Run clang-tidy on files containing changes.
       command = [args.clang_tidy_binary]
-      command.append('-line-filter=' + line_filter_json)
+      if not args.skip_line_filter:
+        command.append('-line-filter=' + line_filter_json)
       if yaml and args.export_fixes:
         # Get a temporary file. We immediately close the handle so clang-tidy can
         # overwrite it.
