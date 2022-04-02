@@ -171,6 +171,8 @@ def main():
                       'command line.')
   parser.add_argument('-quiet', action='store_true', default=False,
                       help='Run clang-tidy in quiet mode')
+  parser.add_argument('-skip-line-filter', action='store_true', default=False,
+                      help='Skip -line-filter option in clang-tidy command')
   clang_tidy_args = []
   argv = sys.argv[1:]
   if '--' in argv:
@@ -288,7 +290,8 @@ def main():
 
       # Run clang-tidy on files containing changes.
       command = [args.clang_tidy_binary]
-      command.append('-line-filter=' + line_filter_json)
+      if not args.skip_line_filter:
+        command.append('-line-filter=' + line_filter_json)
       if yaml and args.export_fixes:
         # Get a temporary file. We immediately close the handle so clang-tidy can
         # overwrite it.
