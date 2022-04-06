@@ -1,3 +1,6 @@
+Note: use git rebase --onto to align with latest llvm release
+
+
 # The LLVM Compiler Infrastructure
 
 This directory and its sub-directories contain source code for LLVM,
