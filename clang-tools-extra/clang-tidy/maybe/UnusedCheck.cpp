@@ -15,14 +15,23 @@ namespace clang {
 namespace tidy {
 namespace maybe {
 
-UnusedCheck::UnusedCheck(llvm::StringRef Name,
-                                   ClangTidyContext *Context)
+UnusedCheck::UnusedCheck(llvm::StringRef Name, ClangTidyContext *Context)
     : ClangTidyCheck(Name, Context) {}
 
 void UnusedCheck::registerMatchers(MatchFinder *Finder) {
-  auto MatchedCallExpr = expr(ignoringImplicit(ignoringParenImpCasts(
-      callExpr(callee(functionDecl(returns(matchesNameForType("^Maybe<.*>$")))))
-          .bind("match"))));
+  // expr means `non-statement`
+  auto MatchedCallExpr =
+      expr(ignoringImplicit(ignoringParenImpCasts(anyOf(
+          callExpr(
+              callee(functionDecl(returns(matchesNameForType("^Maybe<.*>$")))),
+              forCallable(
+                  functionDecl(returns(matchesNameForType("^Maybe<.*>$")))))
+              .bind("match-in-maybe"),
+          callExpr(
+              callee(functionDecl(returns(matchesNameForType("^Maybe<.*>$")))),
+              unless(forCallable(
+                  functionDecl(returns(matchesNameForType("^Maybe<.*>$"))))))
+              .bind("match-in-normal")))));
 
   auto UnusedInCompoundStmt =
       compoundStmt(forEach(MatchedCallExpr),
@@ -50,11 +59,20 @@ void UnusedCheck::registerMatchers(MatchFinder *Finder) {
 }
 
 void UnusedCheck::check(const MatchFinder::MatchResult &Result) {
-  if (const auto *Matched = Result.Nodes.getNodeAs<CallExpr>("match")) {
+  if (const auto *Matched =
+          Result.Nodes.getNodeAs<CallExpr>("match-in-maybe")) {
     diag(Matched->getBeginLoc(), "This function returns Maybe but the return "
                                  "value is ignored. Wrap it with JUST(..)?")
         << Matched->getSourceRange()
         << FixItHint::CreateInsertion(Matched->getBeginLoc(), "JUST(")
+        << FixItHint::CreateInsertion(Matched->getEndLoc(), ")");
+  } else if (const auto *Matched =
+                 Result.Nodes.getNodeAs<CallExpr>("match-in-normal")) {
+    diag(Matched->getBeginLoc(),
+         "This function returns Maybe but the return "
+         "value is ignored. Wrap it with CHECK_JUST(..)?")
+        << Matched->getSourceRange()
+        << FixItHint::CreateInsertion(Matched->getBeginLoc(), "CHECK_JUST(")
         << FixItHint::CreateInsertion(Matched->getEndLoc(), ")");
   }
 }
