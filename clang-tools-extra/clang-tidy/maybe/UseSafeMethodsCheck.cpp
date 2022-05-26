@@ -118,6 +118,7 @@ void UseSafeMethodsCheck::check(const MatchFinder::MatchResult &Result) {
   } else {
     ArgStr = GetSource(This->getSourceRange());
   }
+  std::string ObjectStr = ArgStr;
   
   for (const auto *Arg : Expr->arguments()) {
     ArgStr += ", " + GetSource(Arg->getSourceRange());
@@ -136,7 +137,7 @@ void UseSafeMethodsCheck::check(const MatchFinder::MatchResult &Result) {
       // NOTE(jianhao): unreachable
       return "unknown index";
     }();
-    const auto AnotherFixStr = (IsOriginalArgPointer ? ("(" + ArgStr + ")") : ArgStr) + "[" + Index + "]";
+    const auto AnotherFixStr = (IsOriginalArgPointer ? ("(" + ObjectStr + ")") : ObjectStr) + "[" + Index + "]";
     AdditionalMsg =  "However, if you are very sure that no bound-checking is needed here, " + AnotherFixStr + " is the better choice.";
   }
 
