@@ -26,12 +26,12 @@ namespace maybe {
 // a mapping from unsafe method (type name (without template parameters), method name (unqualified)) to safe function
 // i.e. {{class, method}, func} means to replace `obj.method(args...)` to `JUST(func(obj, args...))` where type of obj is class
 static const std::map<std::pair<std::string, std::string>, std::string> UnsafeMethods {
-  {{"std::vector", "at"}, "oneflow::VectorAt"},
-  {{"std::deque", "at"}, "oneflow::VectorAt"},
-  {{"std::array", "at"}, "oneflow::VectorAt"},
-  {{"std::basic_string", "at"}, "oneflow::VectorAt"},
-  {{"std::map", "at"}, "oneflow::MapAt"},
-  {{"std::unordered_map", "at"}, "oneflow::MapAt"},
+  {{"std::vector", "at"}, "VectorAt"},
+  {{"std::deque", "at"}, "VectorAt"},
+  {{"std::array", "at"}, "VectorAt"},
+  {{"std::basic_string", "at"}, "VectorAt"},
+  {{"std::map", "at"}, "MapAt"},
+  {{"std::unordered_map", "at"}, "MapAt"},
 };
 
 static const std::string MaybeTypeName = "oneflow::Maybe";
@@ -110,24 +110,19 @@ void UseSafeMethodsCheck::check(const MatchFinder::MatchResult &Result) {
     IsOriginalArgPointer = true;
     const auto *OThis = llvm::dyn_cast<CXXOperatorCallExpr>(This);
     if (OThis && OThis->getOperator() == OverloadedOperatorKind::OO_Arrow) {
-      ArgStr = GetSource(OThis->getArg(0)->getSourceRange());
+      ArgStr = "*" + GetSource(OThis->getArg(0)->getSourceRange());
     } else {
-      ArgStr = GetSource(This->getSourceRange());
+      ArgStr = "*" + GetSource(This->getSourceRange());
     }
   } else {
     ArgStr = GetSource(This->getSourceRange());
   }
-  std::string ObjectStr = ArgStr;
   
   for (const auto *Arg : Expr->arguments()) {
     ArgStr += ", " + GetSource(Arg->getSourceRange());
   }
 
-  // NOTE(jianhao): it is likely that the "*" should be placed at another position
-  // for another "safe method" other than "VectorAt"
-  const std::string DereferencePrefix = IsOriginalArgPointer ? "*" : "";
-
-  std::string FixStr = DereferencePrefix + JustMacroName + "(" + 
+  std::string FixStr = JustMacroName + "(" + 
                        std::string(Info->second) + "(" + ArgStr + "))";
 
   std::string AdditionalMsg;
@@ -140,7 +135,7 @@ void UseSafeMethodsCheck::check(const MatchFinder::MatchResult &Result) {
       // NOTE(jianhao): unreachable
       return "unknown index";
     }();
-    const auto AnotherFixStr = (IsOriginalArgPointer ? ("(*" + ObjectStr + ")") : ObjectStr) + "[" + Index + "]";
+    const auto AnotherFixStr = (IsOriginalArgPointer ? ("(" + ArgStr + ")") : ArgStr) + "[" + Index + "]";
     AdditionalMsg =  "However, if you are very sure that no bound-checking is needed here, " + AnotherFixStr + " is the better choice.";
   }
 
