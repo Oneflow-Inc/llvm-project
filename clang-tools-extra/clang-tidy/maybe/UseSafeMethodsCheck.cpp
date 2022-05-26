@@ -34,7 +34,8 @@ static const std::map<std::pair<std::string, std::string>, std::string> UnsafeMe
   {{"std::unordered_map", "at"}, "MapAt"},
 };
 
-static const std::string MaybeTypeName = "oneflow::Maybe";
+static const std::string UnqualifiedMaybeTypeName = "Maybe";
+static const std::string QualifiedMaybeTypeName = "oneflow::" + UnqualifiedMaybeTypeName;
 static const std::string JustMacroName = "JUST";
 
 void UseSafeMethodsCheck::registerMatchers(MatchFinder *Finder) {
@@ -68,7 +69,7 @@ void UseSafeMethodsCheck::check(const MatchFinder::MatchResult &Result) {
     return;
   }
 
-  if(Ret->getQualifiedNameAsString() != MaybeTypeName) {
+  if(Ret->getQualifiedNameAsString() != QualifiedMaybeTypeName) {
     return;
   }
 
@@ -142,7 +143,7 @@ void UseSafeMethodsCheck::check(const MatchFinder::MatchResult &Result) {
   diag(Expr->getExprLoc(), "Unsafe method `%0` is called in function `%1` which returns `%2`, please try to replace it with `%3`. %4")
     << Call->getQualifiedNameAsString()
     << Func->getQualifiedNameAsString()
-    << MaybeTypeName
+    << UnqualifiedMaybeTypeName
     << Info->second
     << AdditionalMsg
     << FixItHint::CreateReplacement(Expr->getSourceRange(), FixStr);
