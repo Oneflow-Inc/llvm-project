@@ -52,7 +52,7 @@ using oneflow::Maybe;
 Maybe<int> g(const std::vector<int>& v) {
     for(int i = 0; i < v.size(); ++i) f(v.at(i));
     // CHECK-MESSAGES: :[[@LINE-1]]:43: warning: unsafe method `std::vector<int>::at` {{.*}}
-    // CHECK-FIXES: JUST(oneflow::VectorAt(v, i))
+    // CHECK-FIXES: JUST(VectorAt(v, i))
 
     return Maybe<int>{1};
 }
@@ -70,7 +70,7 @@ Maybe<T> h(const std::vector<T>& v) {
 Maybe<int> x1(const std::string& x) {
     return x.at(10);
     // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: unsafe method `std::basic_string<char>::at` {{.*}}
-    // CHECK-FIXES: JUST(oneflow::VectorAt(x, 10))
+    // CHECK-FIXES: JUST(VectorAt(x, 10))
 }
 
 std::string xx(int);
@@ -78,7 +78,7 @@ std::string xx(int);
 Maybe<int> x2() {
     return xx(2333).at(10);
     // CHECK-MESSAGES: :[[@LINE-1]]:21: warning: unsafe method `std::basic_string<char>::at` {{.*}}
-    // CHECK-FIXES: JUST(oneflow::VectorAt(xx(2333), 10))
+    // CHECK-FIXES: JUST(VectorAt(xx(2333), 10))
 }
 
 
@@ -90,20 +90,20 @@ void i() {
 Maybe<char> yy(std::string* x) {
     return x->at(rand());
     // CHECK-MESSAGES: :[[@LINE-1]]:15: warning: unsafe method `std::basic_string<char>::at` {{.*}}
-    // CHECK-FIXES: JUST(oneflow::VectorAt(*x, rand()))
+    // CHECK-FIXES: JUST(VectorAt(*x, rand()))
 }
 
 Maybe<char> zz(std::shared_ptr<std::string> x) {
     return x->at(rand());
     // CHECK-MESSAGES: :[[@LINE-1]]:15: warning: unsafe method `std::basic_string<char>::at` {{.*}}
-    // CHECK-FIXES: JUST(oneflow::VectorAt(*x, rand()))
+    // CHECK-FIXES: JUST(VectorAt(*x, rand()))
 }
 
 template <typename T>
 Maybe<T> t1(std::shared_ptr<std::vector<T>> x) {
     return x->at(rand());
     // CHECK-MESSAGES: :[[@LINE-1]]:15: warning: unsafe method `std::vector<{{.*}}>::at` {{.*}}
-    // CHECK-FIXES: JUST(oneflow::VectorAt(*x, rand()))
+    // CHECK-FIXES: JUST(VectorAt(*x, rand()))
 }
 
 void i2() {
@@ -113,5 +113,5 @@ void i2() {
 Maybe<int> z2(const std::map<int, int>& x) {
     return x.at(rand());
     // CHECK-MESSAGES: :[[@LINE-1]]:14: warning: unsafe method `std::map<int, int>::at` {{.*}}
-    // CHECK-FIXES: JUST(oneflow::MapAt(x, rand()))
+    // CHECK-FIXES: JUST(MapAt(x, rand()))
 }
