@@ -1,4 +1,6 @@
-Note: use git rebase --onto to align with latest llvm release
+Note: use git rebase --onto <newparent> <oldparent> to align with latest llvm release.
+For example, `git rebase --onto llvmorg-14.0.4 llvmorg-14.0.0` rebases from 14.0.0 to
+14.0.4.
 
 
 # The LLVM Compiler Infrastructure
