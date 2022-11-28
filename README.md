@@ -4,6 +4,15 @@ Note: use git rebase --onto <newparent> <oldparent> to align with the latest llv
 For example, `git rebase --onto llvmorg-14.0.4 llvmorg-14.0.0` rebases from 14.0.0 to 14.0.4
 (Run `git log` to get current llvm release).
 
+Build instruction:
+```bash
+cd build
+cmake -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra" -DCMAKE_BUILD_TYPE=Release -GNinja ../llvm
+ninja clang-tidy clangd
+```
+
+and then use package_appimage.sh and publish_to_servers.sh.
+
 
 # The LLVM Compiler Infrastructure
 
