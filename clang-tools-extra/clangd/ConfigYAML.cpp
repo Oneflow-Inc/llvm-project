@@ -87,6 +87,10 @@ private:
       if (auto Values = scalarValues(N))
         F.PathExclude = std::move(*Values);
     });
+    Dict.handle("CommandMatch", [&](Node &N) {
+      if (auto Values = scalarValues(N))
+        F.CommandMatch = std::move(*Values);
+    });
     Dict.parse(N);
   }
 
@@ -103,6 +107,10 @@ private:
     Dict.handle("Remove", [&](Node &N) {
       if (auto Values = scalarValues(N))
         F.Remove = std::move(*Values);
+    });
+    Dict.handle("Replace", [&](Node &N) {
+      if (auto Values = scalarValues(N))
+        F.Replace = std::move(*Values);
     });
     Dict.handle("CompilationDatabase", [&](Node &N) {
       F.CompilationDatabase = scalarValue(N, "CompilationDatabase");

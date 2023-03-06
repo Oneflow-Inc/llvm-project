@@ -299,8 +299,19 @@ void CommandMangler::operator()(tooling::CompileCommand &Command,
            "TransferCommand should produce a command ending in -- filename");
   }
 
-  for (auto &Edit : Config::current().CompileFlags.Edits)
-    Edit(Cmd);
+  {
+    bool Matched = true;
+    for (auto &EditCondition : Config::current().CompileFlags.EditConditions) {
+      if (!EditCondition(Cmd)) {
+        Matched = false;
+        break;
+      }
+    }
+    if (Matched) {
+      for (auto &Edit : Config::current().CompileFlags.Edits)
+        Edit(Cmd);
+    }
+  }
 
   // The system include extractor needs to run:
   //  - AFTER transferCompileCommand(), because the -x flag it adds may be

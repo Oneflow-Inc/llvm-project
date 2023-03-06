@@ -114,6 +114,7 @@ struct Fragment {
     std::vector<Located<std::string>> PathMatch;
     /// The file being processed must *not* fully match a regular expression.
     std::vector<Located<std::string>> PathExclude;
+    std::vector<Located<std::string>> CommandMatch;
 
     /// An unrecognized key was found while parsing the condition.
     /// The condition will evaluate to false.
@@ -162,6 +163,8 @@ struct Fragment {
     ///
     /// Flags added by the same CompileFlags entry will not be removed.
     std::vector<Located<std::string>> Remove;
+
+    std::vector<Located<std::string>> Replace;
 
     /// Directory to search for compilation database (compile_commands.json
     /// etc). Valid values are:

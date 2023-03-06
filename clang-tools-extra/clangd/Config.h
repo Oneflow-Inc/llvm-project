@@ -61,6 +61,8 @@ struct Config {
 
   /// Controls how the compile command for the current file is determined.
   struct {
+    std::vector<llvm::unique_function<bool(std::vector<std::string> &) const>>
+        EditConditions;
     /// Edits to apply to the compile command, in sequence.
     std::vector<llvm::unique_function<void(std::vector<std::string> &) const>>
         Edits;
