@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Example: ./package_appimage.sh build/bin/clang-tidy build/lib/clang/13.0.0/
-# Please build binaries on centos7 for most compatibility
+# Please build binaries on centos7 for the best compatibility
 
 set -uexo pipefail
 
