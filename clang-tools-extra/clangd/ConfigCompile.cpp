@@ -251,6 +251,24 @@ struct FragmentCompiler {
             });
           });
     }
+
+    auto CommandMatch = std::make_shared<std::vector<llvm::Regex>>();
+    for (auto &Entry : F.CommandMatch) {
+      llvm::Regex RE(*Entry);
+      CommandMatch->push_back(std::move(RE));
+    }
+    if (!CommandMatch->empty()) {
+      Out.Apply.push_back([CommandMatch(std::move(CommandMatch))](
+                              const Params &, Config &C) {
+        C.CompileFlags.EditConditions.push_back(
+            [CommandMatch](std::vector<std::string> &Args) {
+              const std::string Command = llvm::join(Args, " ");
+              return llvm::any_of(*CommandMatch, [&](const llvm::Regex &RE) {
+                return RE.match(Command);
+              });
+            });
+      });
+    }
   }
 
   void compile(Fragment::CompileFlagsBlock &&F) {
@@ -288,6 +306,34 @@ struct FragmentCompiler {
           Args.insert(It, Add.begin(), Add.end());
         });
       });
+    }
+
+    if (!F.Replace.empty()) {
+      for (size_t I = 0; I < F.Replace.size(); I += 2) {
+        llvm::Regex From(*F.Replace[I]);
+        auto To = F.Replace[I + 1];
+        Out.Apply.push_back(
+            [From(std::make_shared<llvm::Regex>(std::move(From))),
+             To(std::move(To))](const Params &, Config &C) {
+              C.CompileFlags.Edits.push_back(
+                  [From(std::move(From)),
+                   To(std::move(To))](std::vector<std::string> &Args) {
+                    auto NewCmd = llvm::join(Args, " ");
+                    std::string OldCmd;
+
+                    while (NewCmd != OldCmd) {
+                      OldCmd = NewCmd;
+                      std::string Error;
+                      NewCmd = From->sub(*To, OldCmd, &Error);
+                    }
+
+                    auto Splited = llvm::split(NewCmd, " ");
+                    Args.clear();
+                    for (llvm::StringRef &S : Splited)
+                      Args.push_back(S.str());
+                  });
+            });
+      }
     }
 
     if (F.CompilationDatabase) {

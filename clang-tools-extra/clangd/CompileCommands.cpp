@@ -298,8 +298,19 @@ void CommandMangler::adjust(std::vector<std::string> &Cmd,
            "TransferCommand should produce a command ending in -- filename");
   }
 
-  for (auto &Edit : Config::current().CompileFlags.Edits)
-    Edit(Cmd);
+  {
+    bool Matched = true;
+    for (auto &EditCondition : Config::current().CompileFlags.EditConditions) {
+      if (!EditCondition(Cmd)) {
+        Matched = false;
+        break;
+      }
+    }
+    if (Matched) {
+      for (auto &Edit : Config::current().CompileFlags.Edits)
+        Edit(Cmd);
+    }
+  }
 
   // Check whether the flag exists, either as -flag or -flag=*
   auto Has = [&](llvm::StringRef Flag) {
