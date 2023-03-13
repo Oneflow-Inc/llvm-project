@@ -76,10 +76,10 @@ void NeedErrorMsgCheck::check(const MatchFinder::MatchResult &Result) {
   // Check macro names and the minimum number of serialization (operator <<)
   // among them
   llvm::StringMap<unsigned> CheckMacroNamesAndSerializeCount{
-      {"CHECK_OR_RETURN", 3},    {"CHECK_EQ_OR_RETURN", 8},
-      {"CHECK_LT_OR_RETURN", 8}, {"CHECK_LE_OR_RETURN", 8},
-      {"CHECK_NE_OR_RETURN", 8}, {"CHECK_GE_OR_RETURN", 8},
-      {"CHECK_GT_OR_RETURN", 8}, {"CHECK_NOTNULL_OR_RETURN", 3}};
+      {"CHECK_OR_RETURN", 4},    {"CHECK_EQ_OR_RETURN", 6},
+      {"CHECK_LT_OR_RETURN", 6}, {"CHECK_LE_OR_RETURN", 6},
+      {"CHECK_NE_OR_RETURN", 6}, {"CHECK_GE_OR_RETURN", 6},
+      {"CHECK_GT_OR_RETURN", 6}, {"CHECK_NOTNULL_OR_RETURN", 4}};
 
   // Match the follow statement if serializeCount is 0
   // ```c++
