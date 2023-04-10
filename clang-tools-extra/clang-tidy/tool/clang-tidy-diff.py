@@ -75,6 +75,7 @@ def run_tidy(task_queue, lock, timeout, failed_cmds):
     except Exception as e:
       with lock:
         sys.stderr.write('Failed: ' + str(e) + ': '.join(command) + '\n')
+        failed_cmds.append(command)
     finally:
       with lock:
         if not (timeout is None or watchdog is None):
